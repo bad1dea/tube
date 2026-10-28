@@ -46,6 +46,13 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_PREVIEWS: NO
+      configs:
+        # Release is only built by fastlane on CI, with the cert and profile
+        # from repo secrets installed (testflight.yml).
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Tube AppStore
 
 schemes:
   Tube:

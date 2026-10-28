@@ -179,12 +179,11 @@ platform :ios do
       export_method: "app-store",
       # Manual signing — use the cert already imported into the keychain + the
       # installed profile. No -allowProvisioningUpdates, so nothing is minted.
-      # SwiftTerm ships a build-tool plugin; CI cannot click "Trust       xcargs: "CODE_SIGN_STYLE=Manual " \ Enable".
-      xcargs: "-skipPackagePluginValidation -skipMacroValidation " \
-              "CODE_SIGN_STYLE=Manual " \
-              "CODE_SIGN_IDENTITY='Apple Distribution' " \
-              "DEVELOPMENT_TEAM=#{team} " \
-              "PROVISIONING_PROFILE_SPECIFIER='#{profile}'",
+      # Signing (manual, profile "Tube AppStore") is set on the app target in
+      # project.yml. Passing PROVISIONING_PROFILE_SPECIFIER here would apply it
+      # to every Swift package target too, which Xcode rejects.
+      # SwiftTerm ships a build-tool plugin a CI runner cannot approve.
+      xcargs: "-skipPackagePluginValidation -skipMacroValidation DEVELOPMENT_TEAM=#{team}",
       export_options: {
         signingStyle: "manual",
         teamID: team,
