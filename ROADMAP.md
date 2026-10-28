@@ -65,12 +65,16 @@ workspace, React web app, test containers, CI.
 - [x] React app: hosts, tabs, identities, snippets, settings, sync; PWA manifest + service worker
 - [ ] Browser UI tests (Playwright)
 
-## M7 SFTP, forwarding, snippets — partial
+## M7 SFTP, forwarding, snippets — iOS compiles, protocol layer tested
 
 - [x] Snippets with {{variables}} on iOS and web
-- [ ] SFTP browser, upload/download
-- [ ] Local / remote / dynamic port forwarding and saved tunnels
-      (model exists; iOS backgrounding limits apply)
+- [x] SFTP: list, download, upload (300 KB round trip), mkdir, rename, delete (tested);
+      iOS file browser with Quick Look, uploads from Files
+- [x] Local (-L), remote (-R), dynamic SOCKS5 (-D) forwarding (tested end to end);
+      iOS saved tunnels with on/off toggles
+- [ ] Forwards survive backgrounding: not possible on iOS without a VPN
+      extension; the app shows them as stopped when it returns
+- [ ] SFTP and forwarding in the web client (relay would need one socket per channel)
 
 ## M8 Polish — not started
 
