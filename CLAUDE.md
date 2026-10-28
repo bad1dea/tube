@@ -15,7 +15,11 @@ client and desktop come later (see ROADMAP.md).
 - `ios/`: the app. `project.yml` is the XcodeGen spec; the .xcodeproj is
   generated in CI and never committed. UIKit for the terminal input views
   (`Terminal/KeyBar.swift`), SwiftUI for everything else.
+- `Sources/ConchSync`: sync client (pairing, recovery, rotate). Main actor.
 - `server/sync`: Rust (axum + SQLite) sync server. Only stores ciphertext.
+- `server/gateway`: WebSocket-to-TCP relay for the web client.
+- `web/`: React + xterm.js app. `web/sshwasm` is Go x/crypto/ssh compiled to
+  WebAssembly; SSH runs in the page, the gateway never sees plaintext.
 - `test/sshd`: OpenSSH containers (jump, target, inner) for integration tests.
 - `docs/`: crypto and protocol specs, App Store notes.
 
@@ -28,6 +32,8 @@ There is no Xcode on the dev machines (Fedora, hosts `leela` and `amy`).
 swift test --filter 'TermInputTests|ConchCoreTests'   # unit, any OS
 test/sshd/up.sh && CONCH_SSH_TESTS=1 swift test --filter ConchSSHTests
 cd server && cargo test
+test/sync.sh && test/interop.sh && test/web-ssh.sh
+cd web && npm run build
 swiftc -parse $(find ios/Sources -name '*.swift')     # syntax only
 gh workflow run ios-build.yml --ref main              # real iOS compile (macOS runner)
 gh workflow run testflight.yml --ref main             # signed build -> TestFlight
@@ -48,6 +54,9 @@ change under `ios/` before claiming the app compiles.
 - Vault crypto must stay byte-compatible across Swift, web and Rust. Fixed
   vectors are in `Tests/ConchCoreTests/CoreTests.swift`; docs/vault-crypto.md is
   the spec. Change both or neither.
+- Models that sync (Host, Identity, Snippet, ...) cross app versions and
+  platforms. Add new fields as optionals (or with decodeIfPresent), and keep
+  web/src/model.ts in step. Record ids are upper-case UUID strings.
 - Keyboard changes need a test in `KeyEncoderTests` and, if bytes on the wire
   change, in `SSHIntegrationTests.testKeyBytesArriveVerbatim`.
 - Security-sensitive server changes need a test in `server/sync/tests/api.rs`.
