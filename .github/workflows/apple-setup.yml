@@ -1,0 +1,45 @@
+name: Apple setup
+
+# One-time (safe to re-run): registers pro.imnot.tube and creates the
+# "Tube AppStore" provisioning profile. The profile comes back as an artifact;
+# store it as the DIST_PROFILE_BASE64 secret (docs/release.md).
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/ios/fastlane/Gemfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios/fastlane
+      - name: Read distribution certificate serial
+        env:
+          P12: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          P12_PASS: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          serial=$( (openssl pkcs12 -in "$RUNNER_TEMP/dist.p12" -nokeys -clcerts -passin env:P12_PASS -legacy 2>/dev/null \
+                     || openssl pkcs12 -in "$RUNNER_TEMP/dist.p12" -nokeys -clcerts -passin env:P12_PASS) \
+                   | openssl x509 -noout -serial | cut -d= -f2)
+          rm -f "$RUNNER_TEMP/dist.p12"
+          echo "DIST_CERT_SERIAL=$serial" >> "$GITHUB_ENV"
+          echo "certificate serial $serial"
+      - run: bundle exec fastlane setup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tube-appstore-profile
+          path: ios/build/profile.mobileprovision
+          if-no-files-found: error

@@ -58,6 +58,50 @@ def add_build_to_internal_group(build_number: nil, attempts: 8, wait: 20)
 end
 
 platform :ios do
+  # One-time Apple setup with the ASC API key: register the bundle id and make
+  # the App Store profile against the distribution cert in DIST_CERT_SERIAL.
+  # Writes the profile to ../build/profile.mobileprovision. The App Store
+  # Connect app record cannot be created through the API; it only reports it.
+  desc "Register bundle id and create the App Store provisioning profile"
+  lane :setup do
+    asc_login
+    bid = Spaceship::ConnectAPI::BundleId.find(APP_BUNDLE_ID)
+    if bid
+      UI.message("bundle id #{APP_BUNDLE_ID} already registered (#{bid.id})")
+    else
+      bid = Spaceship::ConnectAPI::BundleId.create(name: "Tube", identifier: APP_BUNDLE_ID, platform: "IOS")
+      UI.success("registered bundle id #{APP_BUNDLE_ID} (#{bid.id})")
+    end
+
+    serial = ENV.fetch("DIST_CERT_SERIAL").downcase.sub(/^0+/, "")
+    certs = Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: "DISTRIBUTION,IOS_DISTRIBUTION" })
+    cert = certs.find { |c| c.serial_number.to_s.downcase.sub(/^0+/, "") == serial }
+    UI.user_error!("No distribution certificate with serial #{serial} (have: #{certs.map(&:serial_number).join(', ')})") unless cert
+    UI.message("using certificate #{cert.name} (#{cert.id}), expires #{cert.expiration_date}")
+
+    name = ENV.fetch("PROFILE_NAME", "Tube AppStore")
+    existing = Spaceship::ConnectAPI::Profile.all(filter: { name: name })
+    existing.each do |p|
+      UI.message("deleting existing profile '#{p.name}' (#{p.profile_state})")
+      p.delete!
+    end
+    profile = Spaceship::ConnectAPI::Profile.create(
+      name: name, profile_type: "IOS_APP_STORE",
+      bundle_id_id: bid.id, certificate_ids: [cert.id], device_ids: []
+    )
+    out = File.expand_path("../build/profile.mobileprovision", __dir__)
+    FileUtils.mkdir_p(File.dirname(out))
+    File.binwrite(out, Base64.decode64(profile.profile_content))
+    UI.success("created profile '#{name}' (#{profile.uuid}), expires #{profile.expiration_date}")
+
+    app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
+    if app
+      UI.success("App Store Connect app record exists: #{app.name} (#{app.id})")
+    else
+      UI.important("No App Store Connect app record for #{APP_BUNDLE_ID} yet; create it in the web UI.")
+    end
+  end
+
   # Read-only diagnostic: list recent builds + their exact TestFlight state
   # (processingState + internal/external beta state). This is what reveals WHY a
   # build that "finished processing" isn't testable — e.g. it's still only
