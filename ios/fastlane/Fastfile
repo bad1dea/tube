@@ -51,10 +51,16 @@ def ensure_internal_group(app)
     source = Spaceship::ConnectAPI::App.find(TESTER_SOURCE_BUNDLE_ID)
     source_group = source && (source.get_beta_groups rescue []).find { |g| g.is_internal_group }
     if source_group
-      ids = Spaceship::ConnectAPI.get_beta_testers(filter: { betaGroups: source_group.id }).all_pages.flat_map(&:to_models).map(&:id)
-      unless ids.empty?
-        group.add_beta_testers(beta_tester_ids: ids)
-        UI.success("added #{ids.count} tester(s) from #{TESTER_SOURCE_BUNDLE_ID} to '#{group.name}'")
+      testers = Spaceship::ConnectAPI.get_beta_testers(filter: { betaGroups: source_group.id }).all_pages.flat_map(&:to_models)
+      testers.each do |t|
+        # Tester ids are per app; assign by email so Tube gets its own record.
+        Spaceship::ConnectAPI.post_beta_tester_assignment(
+          beta_group_ids: [group.id],
+          attributes: { email: t.email, firstName: t.first_name, lastName: t.last_name }.compact
+        )
+        UI.success("added tester #{t.email} to '#{group.name}'")
+      rescue StandardError => e
+        UI.important("could not add #{t.email} to '#{group.name}': #{e.message}. Add them in TestFlight > Internal Testing.")
       end
     end
   end
