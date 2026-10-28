@@ -5,6 +5,7 @@ import ConchCore
 struct TerminalScreen: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
+    @EnvironmentObject var trust: HostKeyTrust
 
     var body: some View {
         ZStack {
@@ -19,6 +20,13 @@ struct TerminalScreen: View {
         .sheet(item: $sessions.pendingSnippet) { snippet in
             SnippetVariablesSheet(snippet: snippet) { values in
                 sessions.run(snippet: snippet, values: values)
+            }
+        }
+        .sheet(isPresented: $sessions.filesPresented) {
+            if let s = sessions.active, let host = store.host(s.hostID) {
+                FilesView(host: host, existing: s.sshConnection)
+                    .environmentObject(store)
+                    .environmentObject(trust)
             }
         }
         .sheet(isPresented: $sessions.hostPickerPresented) {

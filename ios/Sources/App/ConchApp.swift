@@ -7,6 +7,7 @@ struct ConchApp: App {
     @StateObject private var trust: HostKeyTrust
     @StateObject private var sessions: SessionManager
     @StateObject private var sync: SyncController
+    @StateObject private var tunnels = TunnelManager()
     @StateObject private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -26,6 +27,7 @@ struct ConchApp: App {
                 .environmentObject(trust)
                 .environmentObject(sessions)
                 .environmentObject(sync)
+                .environmentObject(tunnels)
                 .overlay {
                     if lock.locked { LockScreen(lock: lock) }
                 }
@@ -41,6 +43,7 @@ struct ConchApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task { await sync.syncNow() }
+                        tunnels.markDropped()
                     }
                     if phase == .background {
                         store.saveNow()

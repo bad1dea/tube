@@ -192,9 +192,10 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
         ])
         let add = iconButton("plus", label: "New session") { [weak self] in self?.sessions.requestNewSession() }
         let password = iconButton("key", label: "Send saved password") { [weak self] in self?.sessions.sendPassword() }
+        let files = iconButton("folder", label: "Files (SFTP)") { [weak self] in self?.sessions.requestFiles() }
         toggleButton = iconButton("square.grid.2x2", label: "Key panel") { [weak self] in self?.keyboard.perform(.togglePanel) }
         let hide = iconButton("keyboard.chevron.compact.down", label: "Hide keyboard") { [weak self] in self?.keyboard.perform(.dismissKeyboard) }
-        [back, stripScroll, add, password, toggleButton, hide].forEach(strip.addArrangedSubview)
+        [back, stripScroll, add, files, password, toggleButton, hide].forEach(strip.addArrangedSubview)
         vstack.addArrangedSubview(strip)
 
         // Key row

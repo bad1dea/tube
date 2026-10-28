@@ -41,6 +41,9 @@ final class TerminalSession: ObservableObject, Identifiable {
         view.onFontSizeChange = { [weak self] size in self?.setFontSize(size) }
     }
 
+    /// For SFTP on the same connection while the shell is open.
+    var sshConnection: SSHConnection? { connection }
+
     var statusSymbol: String {
         switch state {
         case .connecting: return "ellipsis"

@@ -12,6 +12,7 @@ final class SessionManager: ObservableObject {
     /// Snippet waiting for variable values; asked in a sheet because a text
     /// field inside the key panel would take first responder from the terminal.
     @Published var pendingSnippet: Snippet?
+    @Published var filesPresented = false
 
     let keyboard = KeyboardModel()
     private let store: AppStore
@@ -70,6 +71,10 @@ final class SessionManager: ObservableObject {
 
     func requestNewSession() {
         hostPickerPresented = true
+    }
+
+    func requestFiles() {
+        if active != nil { filesPresented = true }
     }
 
     func sendPassword() {

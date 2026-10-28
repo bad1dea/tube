@@ -133,16 +133,23 @@ public final class PortForwardHandle: @unchecked Sendable {
     public let boundPort: Int
     let listener: Channel?
     let task: Task<Void, Error>?
+    weak var connection: SSHConnection?
 
-    init(boundPort: Int, listener: Channel?, task: Task<Void, Error>? = nil) {
+    init(boundPort: Int, listener: Channel?, task: Task<Void, Error>? = nil, connection: SSHConnection? = nil) {
         self.boundPort = boundPort
         self.listener = listener
         self.task = task
+        self.connection = connection
     }
 
     public func stop() async {
         try? await listener?.close()
         task?.cancel()
+    }
+
+    public var isAlive: Bool {
+        if let listener { return listener.isActive && connection?.isConnected != false }
+        return task.map { !$0.isCancelled } ?? false && connection?.isConnected != false
     }
 }
 
@@ -178,7 +185,7 @@ extension SSHConnection {
                 }
             }
             .bind(host: bindHost, port: bindPort).get()
-        return PortForwardHandle(boundPort: listener.localAddress?.port ?? bindPort, listener: listener)
+        return PortForwardHandle(boundPort: listener.localAddress?.port ?? bindPort, listener: listener, connection: self)
     }
 
     /// `ssh -D bindHost:bindPort`: SOCKS5 (no auth, CONNECT only).
@@ -189,7 +196,7 @@ extension SSHConnection {
                 child.pipeline.addHandler(SOCKS5Handler(connection: self))
             }
             .bind(host: bindHost, port: bindPort).get()
-        return PortForwardHandle(boundPort: listener.localAddress?.port ?? bindPort, listener: listener)
+        return PortForwardHandle(boundPort: listener.localAddress?.port ?? bindPort, listener: listener, connection: self)
     }
 
     /// `ssh -R remoteHost:remotePort:localHost:localPort`. The server must allow
@@ -224,7 +231,7 @@ extension SSHConnection {
             }
         }
         for try await port in opened.stream {
-            return PortForwardHandle(boundPort: port, listener: nil, task: task)
+            return PortForwardHandle(boundPort: port, listener: nil, task: task, connection: self)
         }
         throw SSHClientError.channelCreationFailed
     }

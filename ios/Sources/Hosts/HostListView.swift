@@ -7,9 +7,10 @@ struct HostListView: View {
     @State private var search = ""
     @State private var editing: Host?
     @State private var sheet: Sheet?
+    @State private var filesHost: Host?
 
     enum Sheet: String, Identifiable {
-        case identities, snippets, knownHosts, settings, importConfig, sync
+        case identities, snippets, knownHosts, settings, importConfig, sync, tunnels
         var id: String { rawValue }
     }
 
@@ -82,6 +83,7 @@ struct HostListView: View {
                 Menu {
                     Button { sheet = .identities } label: { Label("Identities", systemImage: "key") }
                     Button { sheet = .snippets } label: { Label("Snippets", systemImage: "curlybraces") }
+                    Button { sheet = .tunnels } label: { Label("Tunnels", systemImage: "point.3.connected.trianglepath.dotted") }
                     Button { sheet = .knownHosts } label: { Label("Known hosts", systemImage: "checkmark.shield") }
                     Button { sheet = .importConfig } label: { Label("Import / export ssh config", systemImage: "doc.text") }
                     Button { sheet = .sync } label: { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
@@ -91,6 +93,9 @@ struct HostListView: View {
                 }
                 .accessibilityLabel("More")
             }
+        }
+        .sheet(item: $filesHost) { host in
+            FilesView(host: host, existing: nil)
         }
         .sheet(item: $editing) { host in
             NavigationStack { HostEditView(host: host) }
@@ -104,6 +109,7 @@ struct HostListView: View {
                 case .settings: SettingsView()
                 case .importConfig: SSHConfigView()
                 case .sync: SyncView()
+                case .tunnels: TunnelsView()
                 }
             }
         }
@@ -146,6 +152,7 @@ struct HostListView: View {
         }
         .contextMenu {
             Button { sessions.open(host) } label: { Label("Connect", systemImage: "terminal") }
+            Button { filesHost = host } label: { Label("Files", systemImage: "folder") }
             Button { editing = host } label: { Label("Edit", systemImage: "pencil") }
             Button {
                 var copy = host
