@@ -1,0 +1,33 @@
+# Self-hosted Conch sync. The server stores only encrypted records.
+#
+#   cp .env.example .env    # set CONCH_REGISTRATION_TOKEN and CONCH_DOMAIN
+#   docker compose up -d
+#
+# Caddy terminates TLS (automatic certificates for CONCH_DOMAIN). For LAN-only
+# use without a domain, set CONCH_DOMAIN=:80 and put it behind your own TLS.
+services:
+  sync:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      CONCH_REGISTRATION_TOKEN: ${CONCH_REGISTRATION_TOKEN:-}
+      CONCH_TRUST_PROXY: "1"
+      RUST_LOG: info
+    volumes:
+      - sync-data:/data
+    expose: ["8080"]
+
+  caddy:
+    image: docker.io/library/caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      CONCH_DOMAIN: ${CONCH_DOMAIN:-localhost}
+    volumes:
+      - ./server/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [sync]
+
+volumes:
+  sync-data:
+  caddy-data:

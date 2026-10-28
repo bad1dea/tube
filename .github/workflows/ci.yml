@@ -19,3 +19,18 @@ jobs:
         run: test/sshd/up.sh
       - name: SSH integration tests
         run: CONCH_SSH_TESTS=1 swift test --filter ConchSSHTests
+      - name: Sync tests (Swift client against Rust server)
+        run: test/sync.sh
+
+  server:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - name: Docker image builds
+        run: docker build -t conch-sync .

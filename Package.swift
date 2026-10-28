@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 import PackageDescription
 
 // Platform-independent pieces of the iOS app. Everything here builds and tests on
@@ -6,11 +6,12 @@ import PackageDescription
 // exercised without Xcode. The app target in ios/ depends on this package by path.
 let package = Package(
     name: "ConchKit",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS(.v17), .macOS(.v15)],
     products: [
         .library(name: "TermInput", targets: ["TermInput"]),
         .library(name: "ConchCore", targets: ["ConchCore"]),
         .library(name: "ConchSSH", targets: ["ConchSSH"]),
+        .library(name: "ConchSync", targets: ["ConchSync"]),
     ],
     dependencies: [
         // 0.12.1 switched swift-nio-ssh to an unvetted personal fork; stay on 0.12.0.
@@ -33,8 +34,17 @@ let package = Package(
                 .product(name: "Citadel", package: "Citadel"),
             ]
         ),
+        .target(
+            name: "ConchSync",
+            dependencies: [
+                "ConchCore",
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
+        ),
         .testTarget(name: "TermInputTests", dependencies: ["TermInput"]),
         .testTarget(name: "ConchCoreTests", dependencies: ["ConchCore"]),
         .testTarget(name: "ConchSSHTests", dependencies: ["ConchSSH", "TermInput"]),
-    ]
+        .testTarget(name: "ConchSyncTests", dependencies: ["ConchSync"]),
+    ],
+    swiftLanguageModes: [.v5]
 )
