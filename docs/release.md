@@ -5,9 +5,15 @@ The pipeline is the one PrivateGallery (`~/ios` on amy) already ships with:
 XcodeGen generates the project, fastlane `beta` builds with manual signing,
 uploads, waits for processing and adds the build to the internal tester group.
 
-## One-time setup (not done yet)
+## One-time setup
 
-These need the Apple developer account and cannot be done from this repo:
+Done 2026-10-28: bundle id `pro.imnot.tube` registered and the `Tube AppStore`
+profile created by `apple-setup.yml` (fastlane `setup` lane, ASC API key);
+all eight secrets are set on `bad1dea/tube`, the shared six copied from
+`bad1dea/private-gallery`. Still manual: step 2, the App Store Connect app
+record (Apple has no API for creating it).
+
+Original steps, for another app:
 
 1. developer.apple.com: register App ID `pro.imnot.tube`.
 2. App Store Connect: New App, iOS, bundle `pro.imnot.tube`, name "Tube SSH"
