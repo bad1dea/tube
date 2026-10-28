@@ -1,32 +1,45 @@
-# Self-hosted Conch sync. The server stores only encrypted records.
+# Self-hosted Conch: sync server, SSH relay for the web client, and the web
+# client itself, behind Caddy with automatic TLS.
 #
-#   cp .env.example .env    # set CONCH_REGISTRATION_TOKEN and CONCH_DOMAIN
+#   cp .env.example .env    # fill in the values
 #   docker compose up -d
 #
-# Caddy terminates TLS (automatic certificates for CONCH_DOMAIN). For LAN-only
-# use without a domain, set CONCH_DOMAIN=:80 and put it behind your own TLS.
+# Only the sync service is needed for iOS. The gateway and web services are
+# for the browser client; remove them if you do not use it.
 services:
   sync:
     build: ./server
     restart: unless-stopped
     environment:
       CONCH_REGISTRATION_TOKEN: ${CONCH_REGISTRATION_TOKEN:-}
+      CONCH_SYNC_ORIGINS: https://${CONCH_DOMAIN:-localhost}
       CONCH_TRUST_PROXY: "1"
       RUST_LOG: info
     volumes:
       - sync-data:/data
     expose: ["8080"]
 
-  caddy:
-    image: docker.io/library/caddy:2
+  gateway:
+    build:
+      context: ./server
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      CONCH_GATEWAY_TOKENS: ${CONCH_GATEWAY_TOKENS:-}
+      CONCH_GATEWAY_ALLOW: ${CONCH_GATEWAY_ALLOW:-}
+      CONCH_GATEWAY_ORIGINS: https://${CONCH_DOMAIN:-localhost}
+      RUST_LOG: info
+    expose: ["8081"]
+
+  web:
+    build: ./web
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
       CONCH_DOMAIN: ${CONCH_DOMAIN:-localhost}
     volumes:
-      - ./server/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
-    depends_on: [sync]
+    depends_on: [sync, gateway]
 
 volumes:
   sync-data:

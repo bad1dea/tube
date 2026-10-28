@@ -1,0 +1,21 @@
+{$CONCH_DOMAIN} {
+	encode gzip zstd
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		# wasm needs 'wasm-unsafe-eval'; connect-src covers the relay WebSocket.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data:; frame-ancestors 'none'"
+	}
+	handle /v1/* {
+		reverse_proxy sync:8080
+	}
+	handle /relay {
+		reverse_proxy gateway:8081
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

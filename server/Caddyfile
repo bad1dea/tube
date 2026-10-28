@@ -1,5 +1,0 @@
-{$CONCH_DOMAIN} {
-	encode gzip
-	reverse_proxy /v1/* sync:8080
-	reverse_proxy /healthz sync:8080
-}

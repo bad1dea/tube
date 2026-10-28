@@ -7,6 +7,11 @@ public struct SyncError: Error, Equatable, CustomStringConvertible {
     public let status: Int
     public let message: String
     public var description: String { "Sync server returned \(status): \(message)" }
+
+    public init(status: Int, message: String) {
+        self.status = status
+        self.message = message
+    }
 }
 
 /// Wire types and HTTP calls for server/sync. Field names match the Rust

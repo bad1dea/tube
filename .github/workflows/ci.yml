@@ -19,8 +19,15 @@ jobs:
         run: test/sshd/up.sh
       - name: SSH integration tests
         run: CONCH_SSH_TESTS=1 swift test --filter ConchSSHTests
-      - name: Sync tests (Swift client against Rust server)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+        working-directory: web
+      - name: Sync tests (Swift and web clients against Rust server)
         run: test/sync.sh
+      - name: Web/Swift sync interop
+        run: test/interop.sh
 
   server:
     runs-on: ubuntu-24.04
@@ -34,3 +41,29 @@ jobs:
       - run: cargo test
       - name: Docker image builds
         run: docker build -t conch-sync .
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - run: npm ci
+        working-directory: web
+      - name: Typecheck and build
+        working-directory: web
+        run: npm run build
+      - name: Unit tests
+        working-directory: web
+        run: node --experimental-strip-types --no-warnings --test test/crypto.test.ts
+      - name: Build ssh.wasm
+        working-directory: web/sshwasm
+        run: |
+          GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o ../public/ssh.wasm .
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../public/
+      - name: Browser SSH through gateway against test sshd
+        run: test/web-ssh.sh

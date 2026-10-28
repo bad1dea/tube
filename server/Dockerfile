@@ -1,7 +1,8 @@
 FROM docker.io/library/rust:1-slim-bookworm AS build
 WORKDIR /src
-COPY Cargo.toml Cargo.lock* ./
+COPY Cargo.toml Cargo.lock ./
 COPY sync sync
+COPY gateway gateway
 RUN cargo build --release -p conch-sync
 
 FROM docker.io/library/debian:bookworm-slim
