@@ -1,0 +1,46 @@
+name: iOS build
+
+# Compile check on a macOS runner without signing. Manual or on PRs touching
+# Swift code, to keep macOS minutes down.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["ios/**", "Sources/**", "Package.swift", "Package.resolved"]
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          xc="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          sudo xcode-select -switch "${xc:-/Applications/Xcode.app}"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build for simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Conch.xcodeproj -scheme Conch \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning: .*(deprecated|unused)|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: ConchKit tests on macOS
+        run: swift test --filter 'TermInputTests|ConchCoreTests'
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: ios/build.log

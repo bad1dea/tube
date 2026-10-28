@@ -1,0 +1,31 @@
+name: ASC Status
+
+# Read-only: asks App Store Connect for the current state of recent builds.
+# Use this when a build "finished processing" but isn't showing in TestFlight.
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/ios/fastlane/Gemfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby + fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios/fastlane
+
+      - name: Query TestFlight build states
+        run: bundle exec fastlane status

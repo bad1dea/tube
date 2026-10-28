@@ -1,0 +1,38 @@
+name: ASC Distribute
+
+# Adds an already-uploaded, processed build to the internal tester group so
+# TestFlight notifies testers ("ready to test"). The main build workflow uploads
+# with skip_waiting_for_build_processing, so distribution is this separate step.
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Build number to distribute (blank = latest VALID)"
+        required: false
+        default: ""
+
+jobs:
+  distribute:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUILD: ${{ github.event.inputs.build }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/ios/fastlane/Gemfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby + fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios/fastlane
+
+      - name: Distribute to internal testers
+        run: bundle exec fastlane distribute

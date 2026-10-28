@@ -1,0 +1,164 @@
+default_platform(:ios)
+
+# Builds Conch on a cloud macOS runner and ships it to TestFlight.
+# MANUAL signing: the workflow installs a fixed distribution cert + App Store
+# provisioning profile (from repo secrets) into a temp keychain, and we sign
+# with them explicitly. No automatic signing → no throwaway Apple Development
+# certs get created/revoked (which was emailing you every build). The ASC API
+# key is still used, but only to upload to TestFlight.
+#
+# `beta` (the main lane) now AUTO-DISTRIBUTES: after upload it waits for Apple
+# to finish processing, then adds the build to the internal tester group so
+# TestFlight emails testers ("ready to test"). No second manual step. The
+# `distribute` and `status` lanes remain as standalone tools.
+
+APP_BUNDLE_ID = "pro.imnot.conch".freeze
+
+# Authenticate Spaceship's ConnectAPI with the ASC key (base64 in ENV).
+def asc_login
+  require "spaceship"
+  require "base64"
+  Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key: Base64.decode64(ENV.fetch("ASC_KEY_P8_BASE64"))
+  )
+end
+
+# Add a processed build to the internal beta group — the step that flips a build
+# from READY_FOR_BETA_TESTING → IN_BETA_TESTING and notifies internal testers.
+# `build_number` nil/"" = latest VALID build. Retries because the ConnectAPI list
+# can lag a few seconds behind a build becoming VALID.
+def add_build_to_internal_group(build_number: nil, attempts: 8, wait: 20)
+  want = build_number.to_s.strip
+  app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
+  group = (app.get_beta_groups rescue []).find { |g| g.is_internal_group }
+  UI.user_error!("No internal beta group found for #{APP_BUNDLE_ID}") unless group
+
+  build = nil
+  attempts.times do |i|
+    builds = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id, sort: "-version", limit: 8, includes: "buildBetaDetail"
+    )
+    candidate = want.empty? ? builds.find { |b| b.processing_state == "VALID" }
+                            : builds.find { |b| b.version == want }
+    if candidate && candidate.processing_state == "VALID"
+      build = candidate
+      break
+    end
+    UI.message("build #{want.empty? ? '(latest)' : want} not VALID yet " \
+               "(#{candidate&.processing_state || 'not listed'}); retry #{i + 1}/#{attempts}…")
+    sleep(wait) unless i == attempts - 1
+  end
+  UI.user_error!("Build #{want.empty? ? '(latest)' : want} never became VALID in time") unless build
+
+  UI.message("Adding build #{build.version} to internal group '#{group.name}'…")
+  build.add_beta_groups(beta_groups: [group])
+  UI.success("Build #{build.version} distributed to '#{group.name}' — testers notified.")
+end
+
+platform :ios do
+  # Read-only diagnostic: list recent builds + their exact TestFlight state
+  # (processingState + internal/external beta state). This is what reveals WHY a
+  # build that "finished processing" isn't testable — e.g. it's still only
+  # READY_FOR_BETA_TESTING (uploaded+valid but not yet added to the internal
+  # group), or MISSING_EXPORT_COMPLIANCE / PROCESSING / INVALID / EXPIRED.
+  desc "Print recent TestFlight builds + their processing/beta state"
+  lane :status do
+    asc_login
+    app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
+    UI.message("App: #{app.name} (id #{app.id})")
+
+    builds = Spaceship::ConnectAPI::Build.all(
+      app_id: app.id, sort: "-version", limit: 12,
+      includes: "preReleaseVersion,buildBetaDetail,betaAppReviewSubmission"
+    )
+    UI.important("No builds returned for this app at all.") if builds.empty?
+
+    builds.each do |b|
+      detail = (b.build_beta_detail rescue nil)
+      ver    = (b.pre_release_version&.version rescue "?")
+      UI.message(
+        "build #{b.version}  (v#{ver})  " \
+        "processing=#{b.processing_state}  " \
+        "internal=#{detail&.internal_build_state}  " \
+        "external=#{detail&.external_build_state}  " \
+        "expired=#{b.expired}  uploaded=#{b.uploaded_date}"
+      )
+    end
+
+    UI.message("---- beta groups ----")
+    (app.get_beta_groups rescue []).each do |g|
+      UI.message("group '#{g.name}'  id=#{g.id}  internal=#{g.is_internal_group}")
+    end
+  end
+
+  # Standalone distribute — add an already-processed build to the internal group.
+  # ENV["BUILD"] picks a specific build number; default = latest VALID build.
+  desc "Add a processed build to the internal tester group (notifies testers)"
+  lane :distribute do
+    asc_login
+    add_build_to_internal_group(build_number: ENV["BUILD"])
+  end
+
+  desc "Build, upload, and auto-distribute a new build to TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    # ABSOLUTE paths (relative to this Fastfile) — fastlane splits its cwd across
+    # sh (runs in fastlane/), Ruby actions (validate from the fastlane root
+    # ios/), and gym's xcodebuild (runs in fastlane/), so no relative
+    # path satisfies all three. __dir__ is fastlane/, so ../ is ios/.
+    project = File.expand_path("../Conch.xcodeproj", __dir__)
+    outdir  = File.expand_path("../build", __dir__)
+
+    # Regenerate the .xcodeproj from project.yml (never committed). sh runs from
+    # fastlane/, so cd .. to reach ios/ where project.yml lives.
+    sh("cd .. && xcodegen generate")
+
+    # Give every upload a unique, increasing build number.
+    build_no = ENV.fetch("GITHUB_RUN_NUMBER", Time.now.to_i.to_s)
+    increment_build_number(build_number: build_no, xcodeproj: project)
+
+    team    = ENV.fetch("DEVELOPMENT_TEAM")
+    profile = ENV.fetch("PROFILE_NAME")          # "Conch AppStore"
+
+    build_app(
+      project: project,
+      scheme: "Conch",
+      export_method: "app-store",
+      # Manual signing — use the cert already imported into the keychain + the
+      # installed profile. No -allowProvisioningUpdates, so nothing is minted.
+      xcargs: "CODE_SIGN_STYLE=Manual " \
+              "CODE_SIGN_IDENTITY='Apple Distribution' " \
+              "DEVELOPMENT_TEAM=#{team} " \
+              "PROVISIONING_PROFILE_SPECIFIER='#{profile}'",
+      export_options: {
+        signingStyle: "manual",
+        teamID: team,
+        provisioningProfiles: { APP_BUNDLE_ID => profile }
+      },
+      output_directory: outdir,
+      output_name: "Conch.ipa",
+      clean: true
+    )
+
+    # Wait for Apple to finish processing (skip_waiting: false) so we can
+    # immediately add the build to the internal group in this same run.
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: false,
+      distribute_external: false   # internal testers — no Beta App Review
+    )
+
+    # Auto-distribute: add THIS build (by number) to the internal group + notify.
+    asc_login
+    add_build_to_internal_group(build_number: build_no)
+  end
+end
