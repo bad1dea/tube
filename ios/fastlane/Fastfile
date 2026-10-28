@@ -33,7 +33,16 @@ TESTER_SOURCE_BUNDLE_ID = "pro.imnot.privategallery".freeze
 def ensure_internal_group(app)
   group = (app.get_beta_groups rescue []).find { |g| g.is_internal_group }
   unless group
-    group = app.create_beta_group(group_name: "Internal", is_internal_group: true)
+    # Spaceship's create_beta_group always sends publicLink* fields, which
+    # Apple rejects for internal groups, so post the minimal body directly.
+    body = {
+      data: {
+        type: "betaGroups",
+        attributes: { name: "Internal", isInternalGroup: true, hasAccessToAllBuilds: true },
+        relationships: { app: { data: { type: "apps", id: app.id } } }
+      }
+    }
+    group = Spaceship::ConnectAPI.client.test_flight_request_client.post("v1/betaGroups", body).to_models.first
     UI.success("created internal beta group '#{group.name}'")
   end
 
