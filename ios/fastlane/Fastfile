@@ -150,6 +150,22 @@ platform :ios do
   # build that "finished processing" isn't testable — e.g. it's still only
   # READY_FOR_BETA_TESTING (uploaded+valid but not yet added to the internal
   # group), or MISSING_EXPORT_COMPLIANCE / PROCESSING / INVALID / EXPIRED.
+  # TestFlight crash reports testers submitted, with the symbolicated log text.
+  desc "Print TestFlight crash submissions"
+  lane :crashes do
+    asc_login
+    app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
+    c = Spaceship::ConnectAPI.client.test_flight_request_client
+    subs = c.get("v1/apps/#{app.id}/betaFeedbackCrashSubmissions", { limit: 10 }).body["data"] || []
+    UI.important("no crash submissions") if subs.empty?
+    subs.each do |sub|
+      a = sub["attributes"] || {}
+      UI.message("==== crash #{sub['id']} #{a['createdDate']} build=#{a['buildBundleId'] || ''} device=#{a['deviceModel']} os=#{a['osVersion']} comment=#{a['comment'].inspect}")
+      log = c.get("v1/betaFeedbackCrashSubmissions/#{sub['id']}/crashLog").body.dig("data", "attributes", "logText") rescue nil
+      puts(log || "(no log text)")
+    end
+  end
+
   desc "Print recent TestFlight builds + their processing/beta state"
   lane :status do
     asc_login

@@ -1,0 +1,30 @@
+name: ASC Crashes
+
+# Read-only: prints TestFlight crash submissions with their logs.
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/ios/fastlane/Gemfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby + fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: ios/fastlane
+
+      - name: Print crash logs
+        run: bundle exec fastlane crashes
