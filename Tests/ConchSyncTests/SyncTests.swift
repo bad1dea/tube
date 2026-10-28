@@ -6,6 +6,7 @@ import ConchCore
 // Runs against a live server/sync binary. test/sync.sh starts one on a temp
 // database and sets CONCH_SYNC_URL.
 
+@MainActor
 final class MemoryStore: SyncStore {
     var cursor = 0
     var records: [String: LocalRecord] = [:]
@@ -30,17 +31,18 @@ final class MemoryStore: SyncStore {
     func text(_ id: String) -> String? { records[id]?.body.map { String(decoding: $0, as: UTF8.self) } }
 }
 
+@MainActor
 final class SyncTests: XCTestCase {
-    var server: URL!
-
-    override func setUpWithError() throws {
-        let url = ProcessInfo.processInfo.environment["CONCH_SYNC_URL"]
-        try XCTSkipIf(url == nil, "set CONCH_SYNC_URL (test/sync.sh)")
-        server = URL(string: url!)!
+    var server: URL {
+        get throws {
+            let url = ProcessInfo.processInfo.environment["CONCH_SYNC_URL"]
+            try XCTSkipIf(url == nil, "set CONCH_SYNC_URL (test/sync.sh)")
+            return URL(string: url!)!
+        }
     }
 
     func testTwoDevicesThroughPairing() async throws {
-        let (a, rk) = try await VaultClient.create(server: server, deviceName: "phone")
+        let (a, rk) = try await VaultClient.create(server: try server, deviceName: "phone")
         XCTAssertEqual(rk.displayString.count, 39)
         let storeA = MemoryStore()
         storeA.edit("h1", "{\"hostname\":\"10.0.0.1\"}")
@@ -76,8 +78,8 @@ final class SyncTests: XCTestCase {
     }
 
     func testOfflineEditsConflictNewestWins() async throws {
-        let (a, rk) = try await VaultClient.create(server: server, deviceName: "a")
-        let b = try await VaultClient.recover(server: server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "b")
+        let (a, rk) = try await VaultClient.create(server: try server, deviceName: "a")
+        let b = try await VaultClient.recover(server: try server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "b")
         let sa = MemoryStore(), sb = MemoryStore()
         sa.edit("h", "v1", at: Date(timeIntervalSince1970: 1000))
         try await VaultClient.sync(a, store: sa)
@@ -102,14 +104,14 @@ final class SyncTests: XCTestCase {
     }
 
     func testRecoveryOnFreshInstall() async throws {
-        let (a, rk) = try await VaultClient.create(server: server, deviceName: "old phone")
+        let (a, rk) = try await VaultClient.create(server: try server, deviceName: "old phone")
         let sa = MemoryStore()
         sa.edit("id1", kind: "identity", "ssh-ed25519 AAAA test")
         try await VaultClient.sync(a, store: sa)
 
         // Device lost. Fresh install knows only vault id + recovery key text.
         let typed = rk.displayString.lowercased().replacingOccurrences(of: "-", with: " ")
-        let fresh = try await VaultClient.recover(server: server, vaultID: a.vaultID,
+        let fresh = try await VaultClient.recover(server: try server, vaultID: a.vaultID,
                                                   recoveryKey: try RecoveryKey(displayString: typed), deviceName: "new phone")
         let sf = MemoryStore()
         try await VaultClient.sync(fresh, store: sf)
@@ -117,7 +119,7 @@ final class SyncTests: XCTestCase {
 
         // Wrong key gets nothing.
         do {
-            _ = try await VaultClient.recover(server: server, vaultID: a.vaultID, recoveryKey: RecoveryKey.generate(), deviceName: "thief")
+            _ = try await VaultClient.recover(server: try server, vaultID: a.vaultID, recoveryKey: RecoveryKey.generate(), deviceName: "thief")
             XCTFail("recovered with wrong key")
         } catch let e as SyncError {
             XCTAssertEqual(e.status, 401)
@@ -125,8 +127,8 @@ final class SyncTests: XCTestCase {
     }
 
     func testRevokedDeviceCannotReadNewData() async throws {
-        let (a, rk) = try await VaultClient.create(server: server, deviceName: "a")
-        let lost = try await VaultClient.recover(server: server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "stolen")
+        let (a, rk) = try await VaultClient.create(server: try server, deviceName: "a")
+        let lost = try await VaultClient.recover(server: try server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "stolen")
         let sa = MemoryStore()
         sa.edit("h", "before")
         try await VaultClient.sync(a, store: sa)
@@ -155,7 +157,7 @@ final class SyncTests: XCTestCase {
         XCTAssertThrowsError(try VaultClient.decrypt(rec, creds: oldOnly))
 
         // A device enrolled afterwards with the recovery key gets the new key.
-        let later = try await VaultClient.recover(server: server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "replacement")
+        let later = try await VaultClient.recover(server: try server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "replacement")
         XCTAssertEqual(later.epoch, 2)
         let sl = MemoryStore()
         try await VaultClient.sync(later, store: sl)
@@ -163,7 +165,7 @@ final class SyncTests: XCTestCase {
     }
 
     func testServerNeverSeesPlaintext() async throws {
-        let (a, _) = try await VaultClient.create(server: server, deviceName: "a")
+        let (a, _) = try await VaultClient.create(server: try server, deviceName: "a")
         let s = MemoryStore()
         s.edit("h", "hostname=very-secret-host.example password=hunter2")
         try await VaultClient.sync(a, store: s)

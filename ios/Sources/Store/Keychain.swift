@@ -12,6 +12,7 @@ enum Keychain {
         case privateKey(UUID)
         case keyPassphrase(UUID)
         case vaultKey
+        case syncCredentials
 
         var account: String {
             switch self {
@@ -19,6 +20,7 @@ enum Keychain {
             case .privateKey(let id): return "key.\(id.uuidString)"
             case .keyPassphrase(let id): return "keypass.\(id.uuidString)"
             case .vaultKey: return "vault.key"
+            case .syncCredentials: return "sync.credentials"
             }
         }
     }

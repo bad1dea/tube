@@ -34,6 +34,8 @@ targets:
         product: ConchCore
       - package: ConchKit
         product: ConchSSH
+      - package: ConchKit
+        product: ConchSync
       - package: SwiftTerm
     settings:
       base:

@@ -15,6 +15,39 @@ struct LocalData: Codable {
     var settings = AppSettings()
     /// Commands sent from snippets or history; never typed input.
     var history: [String] = []
+    var sync = SyncState()
+
+    init() {}
+
+    // Missing keys fall back to defaults so adding a field never makes an
+    // older conch.json unreadable.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hosts = try c.decodeIfPresent([Host].self, forKey: .hosts) ?? []
+        groups = try c.decodeIfPresent([HostGroup].self, forKey: .groups) ?? []
+        identities = try c.decodeIfPresent([Identity].self, forKey: .identities) ?? []
+        snippets = try c.decodeIfPresent([Snippet].self, forKey: .snippets) ?? []
+        forwards = try c.decodeIfPresent([PortForward].self, forKey: .forwards) ?? []
+        knownHosts = try c.decodeIfPresent(KnownHosts.self, forKey: .knownHosts) ?? KnownHosts()
+        settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
+        history = try c.decodeIfPresent([String].self, forKey: .history) ?? []
+        sync = try c.decodeIfPresent(SyncState.self, forKey: .sync) ?? SyncState()
+    }
+}
+
+/// Sync bookkeeping. Records are diffed against `meta` hashes on each sync
+/// instead of hooking every edit.
+struct SyncState: Codable {
+    struct Meta: Codable {
+        var kind: String
+        var serverVersion: Int
+        var hash: String
+        var updatedAt: Date
+    }
+    var cursor = 0
+    var meta: [String: Meta] = [:]
+    var lastSync: Date?
+    var serverURL: String = ""
 }
 
 struct AppSettings: Codable, Equatable {
@@ -22,6 +55,16 @@ struct AppSettings: Codable, Equatable {
     var lockWithBiometrics = false
     var showKeyPanelByDefault = false
     var keyClicks = true
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        terminal = try c.decodeIfPresent(TerminalSettings.self, forKey: .terminal) ?? TerminalSettings()
+        lockWithBiometrics = try c.decodeIfPresent(Bool.self, forKey: .lockWithBiometrics) ?? false
+        showKeyPanelByDefault = try c.decodeIfPresent(Bool.self, forKey: .showKeyPanelByDefault) ?? false
+        keyClicks = try c.decodeIfPresent(Bool.self, forKey: .keyClicks) ?? true
+    }
 }
 
 @MainActor
@@ -37,9 +80,15 @@ final class AppStore: ObservableObject {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.url = url ?? dir.appendingPathComponent("conch.json")
-        if let raw = try? Data(contentsOf: self.url),
-           let decoded = try? JSONDecoder.conch.decode(LocalData.self, from: raw) {
-            data = decoded
+        if let raw = try? Data(contentsOf: self.url) {
+            if let decoded = try? JSONDecoder.conch.decode(LocalData.self, from: raw) {
+                data = decoded
+            } else {
+                // Keep the unreadable file instead of overwriting it on the next save.
+                let aside = self.url.appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970))")
+                try? FileManager.default.moveItem(at: self.url, to: aside)
+                data = LocalData()
+            }
         } else {
             data = LocalData()
         }

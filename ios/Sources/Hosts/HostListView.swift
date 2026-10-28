@@ -9,7 +9,7 @@ struct HostListView: View {
     @State private var sheet: Sheet?
 
     enum Sheet: String, Identifiable {
-        case identities, snippets, knownHosts, settings, importConfig
+        case identities, snippets, knownHosts, settings, importConfig, sync
         var id: String { rawValue }
     }
 
@@ -84,6 +84,7 @@ struct HostListView: View {
                     Button { sheet = .snippets } label: { Label("Snippets", systemImage: "curlybraces") }
                     Button { sheet = .knownHosts } label: { Label("Known hosts", systemImage: "checkmark.shield") }
                     Button { sheet = .importConfig } label: { Label("Import / export ssh config", systemImage: "doc.text") }
+                    Button { sheet = .sync } label: { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
                     Button { sheet = .settings } label: { Label("Settings", systemImage: "gear") }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -102,6 +103,7 @@ struct HostListView: View {
                 case .knownHosts: KnownHostsView()
                 case .settings: SettingsView()
                 case .importConfig: SSHConfigView()
+                case .sync: SyncView()
                 }
             }
         }

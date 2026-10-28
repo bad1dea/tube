@@ -6,6 +6,7 @@ struct ConchApp: App {
     @StateObject private var store: AppStore
     @StateObject private var trust: HostKeyTrust
     @StateObject private var sessions: SessionManager
+    @StateObject private var sync: SyncController
     @StateObject private var lock = AppLock()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -15,6 +16,7 @@ struct ConchApp: App {
         _store = StateObject(wrappedValue: store)
         _trust = StateObject(wrappedValue: trust)
         _sessions = StateObject(wrappedValue: SessionManager(store: store, trust: trust))
+        _sync = StateObject(wrappedValue: SyncController(store: store))
     }
 
     var body: some Scene {
@@ -23,11 +25,23 @@ struct ConchApp: App {
                 .environmentObject(store)
                 .environmentObject(trust)
                 .environmentObject(sessions)
+                .environmentObject(sync)
                 .overlay {
                     if lock.locked { LockScreen(lock: lock) }
                 }
                 .onAppear { lock.lockIfEnabled(store.data.settings.lockWithBiometrics) }
+                .onChange(of: store.data.hosts) { sync.scheduleSync() }
+                .onChange(of: store.data.snippets) { sync.scheduleSync() }
+                .onChange(of: store.data.identities) { sync.scheduleSync() }
+                .onChange(of: store.data.groups) { sync.scheduleSync() }
+                .onChange(of: store.data.knownHosts) {
+                    trust.reload()
+                    sync.scheduleSync()
+                }
                 .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        Task { await sync.syncNow() }
+                    }
                     if phase == .background {
                         store.saveNow()
                         lock.lockIfEnabled(store.data.settings.lockWithBiometrics)
@@ -97,6 +111,7 @@ struct RootView: View {
                             .environmentObject(store)
                             .environmentObject(sessions)
                             .environmentObject(trust)
+                            .environmentObject(sync)
                     }
             }
         }

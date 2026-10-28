@@ -41,6 +41,8 @@ public struct LocalRecord: Equatable, Sendable {
 }
 
 /// The app's side of sync. Implementations persist records and the cursor.
+/// Main actor so app stores backed by UI state can conform directly.
+@MainActor
 public protocol SyncStore: AnyObject {
     var cursor: Int { get set }
     func record(_ id: String) -> LocalRecord?
@@ -123,11 +125,13 @@ public enum VaultClient {
 
     /// Revokes a device and rotates the vault key so it cannot read anything
     /// written afterwards. All records are re-encrypted under the new key.
+    @MainActor
     public static func revokeAndRotate(_ creds: VaultCredentials, deviceID: String, store: SyncStore) async throws -> VaultCredentials {
         try await creds.api.revoke(deviceID: deviceID)
         return try await rotate(creds, store: store)
     }
 
+    @MainActor
     public static func rotate(_ creds: VaultCredentials, store: SyncStore) async throws -> VaultCredentials {
         // Bring local state up to date first so nothing is re-encrypted from stale data.
         try await sync(creds, store: store)
@@ -150,7 +154,7 @@ public enum VaultClient {
     // MARK: Sync
 
     /// Pull, merge, push. Newer `updatedAt` wins a conflict.
-    @discardableResult
+    @MainActor @discardableResult
     public static func sync(_ creds: VaultCredentials, store: SyncStore) async throws -> (pulled: Int, pushed: Int) {
         let api = creds.api
         var pulled = 0
@@ -195,6 +199,7 @@ public enum VaultClient {
         return (pulled, pushed)
     }
 
+    @MainActor
     static func merge(_ remote: SyncAPI.Record, creds: VaultCredentials, store: SyncStore) throws {
         let local = store.record(remote.id)
         if let local, local.serverVersion >= remote.version { return }
