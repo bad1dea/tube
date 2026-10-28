@@ -1,6 +1,6 @@
 import SwiftUI
 import UIKit
-import ConchCore
+import TubeCore
 
 struct TerminalScreen: View {
     @EnvironmentObject var store: AppStore
@@ -102,7 +102,7 @@ struct TerminalHost: UIViewControllerRepresentable {
 final class TerminalHostController: UIViewController {
     private let store: AppStore
     private let sessions: SessionManager
-    private var current: ConchTerminalView?
+    private var current: TubeTerminalView?
     private lazy var accessory = AccessoryBar(keyboard: sessions.keyboard, sessions: sessions)
     private lazy var panel = KeyPanel(keyboard: sessions.keyboard) { [unowned self] tab in
         AnyView(PanelTabView(tab: tab).environmentObject(self.store).environmentObject(self.sessions))

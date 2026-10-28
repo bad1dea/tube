@@ -1,10 +1,10 @@
 import XCTest
 import Foundation
-import ConchCore
-@testable import ConchSync
+import TubeCore
+@testable import TubeSync
 
 // Runs against a live server/sync binary. test/sync.sh starts one on a temp
-// database and sets CONCH_SYNC_URL.
+// database and sets TUBE_SYNC_URL.
 
 @MainActor
 final class MemoryStore: SyncStore {
@@ -35,8 +35,8 @@ final class MemoryStore: SyncStore {
 final class SyncTests: XCTestCase {
     var server: URL {
         get throws {
-            let url = ProcessInfo.processInfo.environment["CONCH_SYNC_URL"]
-            try XCTSkipIf(url == nil, "set CONCH_SYNC_URL (test/sync.sh)")
+            let url = ProcessInfo.processInfo.environment["TUBE_SYNC_URL"]
+            try XCTSkipIf(url == nil, "set TUBE_SYNC_URL (test/sync.sh)")
             return URL(string: url!)!
         }
     }
@@ -51,7 +51,7 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(r.pushed, 2)
 
         let code = try await VaultClient.invite(a)
-        XCTAssertTrue(code.hasPrefix("conch://pair?"))
+        XCTAssertTrue(code.hasPrefix("tube://pair?"))
         let b = try await VaultClient.claim(code, deviceName: "ipad")
         XCTAssertEqual(b.vaultID, a.vaultID)
         XCTAssertEqual(b.keys, a.keys)

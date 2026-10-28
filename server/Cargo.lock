@@ -142,43 +142,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "conch-gateway"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.23.1",
- "futures-util",
- "getrandom 0.4.3",
- "ipnet",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-tungstenite 0.30.0",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "conch-sync"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.23.1",
- "getrandom 0.4.3",
- "http-body-util",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "const-oid"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1073,6 +1036,43 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tube-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "futures-util",
+ "getrandom 0.4.3",
+ "ipnet",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tube-sync"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "getrandom 0.4.3",
+ "http-body-util",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

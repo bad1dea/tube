@@ -1,2 +1,2 @@
-app_identifier("pro.imnot.conch")
+app_identifier("pro.imnot.tube")
 # Team ID and API-key auth come from CI env vars / GitHub secrets.

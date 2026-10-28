@@ -5,7 +5,7 @@ import TermInput
 /// SwiftTerm's view with the key bar's CTRL/ALT latches applied to soft
 /// keyboard input. Hardware keys with real modifiers go straight to SwiftTerm,
 /// which already encodes them (and speaks the kitty keyboard protocol).
-final class ConchTerminalView: TerminalView {
+final class TubeTerminalView: TerminalView {
     weak var keyboard: KeyboardModel?
     var onFontSizeChange: ((CGFloat) -> Void)?
 

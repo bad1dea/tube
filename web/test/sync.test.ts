@@ -1,11 +1,11 @@
-// Web sync client against a live server/sync (CONCH_SYNC_URL, see test/sync.sh).
+// Web sync client against a live server/sync (TUBE_SYNC_URL, see test/sync.sh).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { emptyData, newHost, newID, type WebData } from "../src/model.ts";
 import * as s from "../src/vault/sync.ts";
 
-const server = process.env.CONCH_SYNC_URL;
-const opts = { skip: !server && "set CONCH_SYNC_URL" };
+const server = process.env.TUBE_SYNC_URL;
+const opts = { skip: !server && "set TUBE_SYNC_URL" };
 
 test("pairing, edits, deletes between two browsers", opts, async () => {
   const { creds: a } = await s.createVault(server!, "a");

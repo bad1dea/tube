@@ -1,4 +1,4 @@
-use conch_sync::{db, router, AppState};
+use tube_sync::{db, router, AppState};
 use std::net::SocketAddr;
 
 #[tokio::main]
@@ -9,26 +9,26 @@ async fn main() {
         )
         .init();
 
-    let path = std::env::var("CONCH_DB").unwrap_or_else(|_| "/data/conch-sync.db".into());
-    let listen: SocketAddr = std::env::var("CONCH_LISTEN")
+    let path = std::env::var("TUBE_DB").unwrap_or_else(|_| "/data/tube-sync.db".into());
+    let listen: SocketAddr = std::env::var("TUBE_LISTEN")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())
         .parse()
-        .expect("CONCH_LISTEN");
-    let registration = std::env::var("CONCH_REGISTRATION_TOKEN")
+        .expect("TUBE_LISTEN");
+    let registration = std::env::var("TUBE_REGISTRATION_TOKEN")
         .ok()
         .filter(|s| !s.is_empty());
-    let trust_proxy = std::env::var("CONCH_TRUST_PROXY")
+    let trust_proxy = std::env::var("TUBE_TRUST_PROXY")
         .map(|v| v == "1")
         .unwrap_or(false);
     if registration.is_none() {
         tracing::warn!(
-            "CONCH_REGISTRATION_TOKEN not set: anyone who can reach this server can create a vault"
+            "TUBE_REGISTRATION_TOKEN not set: anyone who can reach this server can create a vault"
         );
     }
 
     let conn = db::open(&path).expect("open database");
     let mut state = AppState::new(conn, registration, trust_proxy);
-    state.cors_origins = std::env::var("CONCH_SYNC_ORIGINS")
+    state.cors_origins = std::env::var("TUBE_SYNC_ORIGINS")
         .unwrap_or_default()
         .split(',')
         .map(|s| s.trim().to_string())

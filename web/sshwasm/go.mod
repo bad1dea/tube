@@ -1,4 +1,4 @@
-module conch/sshwasm
+module tube/sshwasm
 
 go 1.26.10
 

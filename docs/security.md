@@ -33,7 +33,7 @@ record id and kind in the AAD.
 
 Browsers cannot open TCP sockets. The web client runs the SSH protocol
 itself in WebAssembly (golang.org/x/crypto/ssh) and sends the SSH byte
-stream over a WebSocket to `conch-gateway`, which opens the TCP connection.
+stream over a WebSocket to `tube-gateway`, which opens the TCP connection.
 
 The gateway **does not** terminate SSH. It sees the destination host and
 port, connection times and byte counts, and the client IP. It never receives
@@ -44,11 +44,11 @@ impersonate a server whose key is already known.
 Gateway controls:
 
 - Token per user (first WebSocket frame, not the URL); stored as SHA-256.
-- Destination allow-list (`CONCH_GATEWAY_ALLOW`) by CIDR or name and port.
+- Destination allow-list (`TUBE_GATEWAY_ALLOW`) by CIDR or name and port.
   Resolved addresses are checked, so DNS cannot point an allowed name at
   loopback or 169.254.169.254. Loopback and link-local are refused unless a
   CIDR rule names them.
-- `Origin` must match `CONCH_GATEWAY_ORIGINS`.
+- `Origin` must match `TUBE_GATEWAY_ORIGINS`.
 - Per-user concurrent session cap, per-IP connection rate limit.
 - Audit log line per session: user, client IP, destination, duration, bytes.
 - Each WebSocket gets its own TCP connection; sessions share nothing.

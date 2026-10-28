@@ -34,7 +34,7 @@ function Unlock({ onOpen }: { onOpen: (v: LocalVault, d: WebData) => void }) {
 
   return (
     <form className="unlock" onSubmit={submit}>
-      <h1>Conch</h1>
+      <h1>Tube</h1>
       <p className="muted">{exists ? "Unlock this browser's vault." : "Choose a passphrase for this browser. Hosts and keys are stored encrypted with it."}</p>
       <input type="password" autoFocus placeholder="Passphrase" value={pass} onChange={(e) => setPass(e.target.value)} />
       {!exists && <input type="password" placeholder="Repeat passphrase" value={pass2} onChange={(e) => setPass2(e.target.value)} />}

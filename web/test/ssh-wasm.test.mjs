@@ -1,4 +1,4 @@
-// End-to-end: Go SSH (wasm) -> conch-gateway relay -> test/sshd containers.
+// End-to-end: Go SSH (wasm) -> tube-gateway relay -> test/sshd containers.
 // Run with test/web-ssh.sh, which starts the gateway and sets env vars.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,16 +9,16 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pub = path.join(here, "..", "public");
 const keys = path.join(here, "..", "..", "test", "sshd", "keys");
-const relayURL = process.env.CONCH_RELAY_URL;
-const token = process.env.CONCH_RELAY_TOKEN;
+const relayURL = process.env.TUBE_RELAY_URL;
+const token = process.env.TUBE_RELAY_TOKEN;
 
 await new Promise((resolve) => {
-  globalThis.conchSSHReady = resolve;
+  globalThis.tubeSSHReady = resolve;
   eval(readFileSync(path.join(pub, "wasm_exec.js"), "utf8"));
   const go = new globalThis.Go();
   WebAssembly.instantiate(readFileSync(path.join(pub, "ssh.wasm")), go.importObject).then((r) => go.run(r.instance));
 });
-const ssh = globalThis.conchSSH;
+const ssh = globalThis.tubeSSH;
 
 function session(hops, { accept = true, seen = [] } = {}) {
   let out = "";

@@ -1,6 +1,6 @@
 // Offline shell: cache the app on install, serve from cache first. Network
 // requests to the sync server and gateway are never cached.
-const CACHE = "conch-v1";
+const CACHE = "tube-v1";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/index.html", "/ssh.wasm", "/wasm_exec.js", "/manifest.webmanifest"])));

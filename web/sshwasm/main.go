@@ -1,10 +1,10 @@
 //go:build js && wasm
 
-// SSH client for the Conch web app. Runs in the browser; the gateway only
+// SSH client for the Tube web app. Runs in the browser; the gateway only
 // relays the encrypted SSH stream over a WebSocket. Credentials and terminal
 // data never leave this process unencrypted.
 //
-// JS API (globalThis.conchSSH):
+// JS API (globalThis.tubeSSH):
 //
 //	connect({relayURL, token, hops: [{host, port, user, password?, privateKey?, passphrase?}],
 //	         cols, rows, term, onData(Uint8Array), onClose(reason),
@@ -37,8 +37,8 @@ func main() {
 	api.Set("connect", js.FuncOf(connect))
 	api.Set("generateKey", js.FuncOf(generateKey))
 	api.Set("publicKey", js.FuncOf(publicKey))
-	js.Global().Set("conchSSH", api)
-	if ready := js.Global().Get("conchSSHReady"); ready.Type() == js.TypeFunction {
+	js.Global().Set("tubeSSH", api)
+	if ready := js.Global().Get("tubeSSHReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
 	}
 	select {}

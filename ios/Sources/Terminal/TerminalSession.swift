@@ -1,7 +1,7 @@
 import UIKit
 import SwiftTerm
-import ConchCore
-import ConchSSH
+import TubeCore
+import TubeSSH
 
 @MainActor
 final class TerminalSession: ObservableObject, Identifiable {
@@ -15,7 +15,7 @@ final class TerminalSession: ObservableObject, Identifiable {
     let hostID: UUID
     @Published var title: String
     @Published private(set) var state: State = .connecting
-    let view: ConchTerminalView
+    let view: TubeTerminalView
 
     private var connection: SSHConnection?
     private var shell: ShellSession?
@@ -31,7 +31,7 @@ final class TerminalSession: ObservableObject, Identifiable {
         self.store = store
         self.trust = trust
         let settings = host.terminal ?? store.data.settings.terminal
-        view = ConchTerminalView(frame: CGRect(x: 0, y: 0, width: 400, height: 600),
+        view = TubeTerminalView(frame: CGRect(x: 0, y: 0, width: 400, height: 600),
                                  font: TerminalFonts.font(name: settings.fontName, size: settings.fontSize))
         view.keyboard = keyboard
         view.backspaceSendsControlH = settings.backspaceSendsControlH

@@ -5,7 +5,7 @@ import Security
 /// and their passphrases. Items are device-only (no iCloud Keychain) and
 /// readable after first unlock so reconnect works while the screen is locked.
 enum Keychain {
-    static let service = "pro.imnot.conch"
+    static let service = "pro.imnot.tube"
 
     enum Item {
         case hostPassword(UUID)

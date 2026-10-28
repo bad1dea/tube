@@ -1,7 +1,7 @@
 import SwiftUI
 import QuickLook
-import ConchCore
-import ConchSSH
+import TubeCore
+import TubeSSH
 
 @MainActor
 final class FilesModel: ObservableObject {

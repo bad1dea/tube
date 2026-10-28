@@ -1,4 +1,4 @@
-//! WebSocket to TCP relay for the Conch web client.
+//! WebSocket to TCP relay for the Tube web client.
 //!
 //! The browser runs SSH itself (Go x/crypto/ssh compiled to WebAssembly) and
 //! uses this relay as its socket. The relay sees which host and port a user

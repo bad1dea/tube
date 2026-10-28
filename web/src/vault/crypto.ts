@@ -1,4 +1,4 @@
-// WebCrypto port of Sources/ConchCore/VaultCrypto.swift. Spec and test vector:
+// WebCrypto port of Sources/TubeCore/VaultCrypto.swift. Spec and test vector:
 // docs/vault-crypto.md. Keep byte-compatible with the Swift and server side.
 
 const enc = new TextEncoder();
@@ -99,10 +99,10 @@ async function hkdf(ikm: Uint8Array, salt: string, info: string): Promise<Uint8A
   return new Uint8Array(bits);
 }
 
-export const kek = (rk: Uint8Array, vaultID: string) => hkdf(rk, vaultID, "conch-kek-v1");
-export const recoveryAuth = (rk: Uint8Array, vaultID: string) => hkdf(rk, vaultID, "conch-recovery-auth-v1");
-export const recordKey = (vk: Uint8Array, vaultID: string) => hkdf(vk, vaultID, "conch-record-v1");
-export const pairingKey = (secret: Uint8Array, inviteID: string) => hkdf(secret, inviteID, "conch-pair-v1");
+export const kek = (rk: Uint8Array, vaultID: string) => hkdf(rk, vaultID, "tube-kek-v1");
+export const recoveryAuth = (rk: Uint8Array, vaultID: string) => hkdf(rk, vaultID, "tube-recovery-auth-v1");
+export const recordKey = (vk: Uint8Array, vaultID: string) => hkdf(vk, vaultID, "tube-record-v1");
+export const pairingKey = (secret: Uint8Array, inviteID: string) => hkdf(secret, inviteID, "tube-pair-v1");
 
 export async function seal(plain: Uint8Array, key: Uint8Array, aad: string): Promise<Uint8Array> {
   const k = await subtle.importKey("raw", key as BufferSource, "AES-GCM", false, ["encrypt"]);
@@ -121,9 +121,9 @@ export async function open(sealed: Uint8Array, key: Uint8Array, aad: string): Pr
   return new Uint8Array(pt);
 }
 
-export const vkAAD = (vaultID: string) => `conch-vk-v1|${vaultID}`;
-export const recordAAD = (vaultID: string, id: string, kind: string) => `conch-record-v1|${vaultID}|${id}|${kind}`;
-export const pairAAD = (inviteID: string) => `conch-pair-v1|${inviteID}`;
+export const vkAAD = (vaultID: string) => `tube-vk-v1|${vaultID}`;
+export const recordAAD = (vaultID: string, id: string, kind: string) => `tube-record-v1|${vaultID}|${id}|${kind}`;
+export const pairAAD = (inviteID: string) => `tube-pair-v1|${inviteID}`;
 
 /// Local at-rest key for the browser copy of the vault: PBKDF2 over a
 /// passphrase the user picks for this browser. Separate from the recovery key.

@@ -1,5 +1,5 @@
 import SwiftUI
-import ConchCore
+import TubeCore
 
 struct SnippetsView: View {
     @EnvironmentObject var store: AppStore

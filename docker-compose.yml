@@ -1,4 +1,4 @@
-# Self-hosted Conch: sync server, SSH relay for the web client, and the web
+# Self-hosted Tube: sync server, SSH relay for the web client, and the web
 # client itself, behind Caddy with automatic TLS.
 #
 #   cp .env.example .env    # fill in the values
@@ -11,9 +11,9 @@ services:
     build: ./server
     restart: unless-stopped
     environment:
-      CONCH_REGISTRATION_TOKEN: ${CONCH_REGISTRATION_TOKEN:-}
-      CONCH_SYNC_ORIGINS: https://${CONCH_DOMAIN:-localhost}
-      CONCH_TRUST_PROXY: "1"
+      TUBE_REGISTRATION_TOKEN: ${TUBE_REGISTRATION_TOKEN:-}
+      TUBE_SYNC_ORIGINS: https://${TUBE_DOMAIN:-localhost}
+      TUBE_TRUST_PROXY: "1"
       RUST_LOG: info
     volumes:
       - sync-data:/data
@@ -25,9 +25,9 @@ services:
       dockerfile: gateway/Dockerfile
     restart: unless-stopped
     environment:
-      CONCH_GATEWAY_TOKENS: ${CONCH_GATEWAY_TOKENS:-}
-      CONCH_GATEWAY_ALLOW: ${CONCH_GATEWAY_ALLOW:-}
-      CONCH_GATEWAY_ORIGINS: https://${CONCH_DOMAIN:-localhost}
+      TUBE_GATEWAY_TOKENS: ${TUBE_GATEWAY_TOKENS:-}
+      TUBE_GATEWAY_ALLOW: ${TUBE_GATEWAY_ALLOW:-}
+      TUBE_GATEWAY_ORIGINS: https://${TUBE_DOMAIN:-localhost}
       RUST_LOG: info
     expose: ["8081"]
 
@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      CONCH_DOMAIN: ${CONCH_DOMAIN:-localhost}
+      TUBE_DOMAIN: ${TUBE_DOMAIN:-localhost}
     volumes:
       - caddy-data:/data
     depends_on: [sync, gateway]

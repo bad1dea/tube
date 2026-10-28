@@ -1,6 +1,6 @@
 import Foundation
 import Crypto
-import ConchCore
+import TubeCore
 
 /// What a device keeps to talk to its vault. Stored in the Keychain on iOS.
 public struct VaultCredentials: Codable, Equatable, Sendable {
@@ -88,16 +88,16 @@ public enum VaultClient {
                                 epoch: r.key_epoch, keys: [r.key_epoch: vk.bytes], kek: kek.withUnsafeBytes { Data($0) })
     }
 
-    /// Returns a `conch://pair` URL to show as QR/text on the existing device.
+    /// Returns a `tube://pair` URL to show as QR/text on the existing device.
     public static func invite(_ creds: VaultCredentials) async throws -> String {
         let inviteID = Base32.encode(randomBytes(16))
         let secret = randomBytes(32)
         guard let vk = creds.keys[creds.epoch] else { throw VaultCryptoError.badCiphertext }
         let key = VaultCrypto.pairingKey(secret: secret, inviteID: inviteID)
-        let payload = try VaultCrypto.seal(vk + creds.kek, key: key, aad: Data("conch-pair-v1|\(inviteID)".utf8))
+        let payload = try VaultCrypto.seal(vk + creds.kek, key: key, aad: Data("tube-pair-v1|\(inviteID)".utf8))
         try await creds.api.createInvite(inviteID: inviteID, payload: payload)
         var c = URLComponents()
-        c.scheme = "conch"
+        c.scheme = "tube"
         c.host = "pair"
         c.queryItems = [
             URLQueryItem(name: "server", value: creds.serverURL.absoluteString),
@@ -108,15 +108,15 @@ public enum VaultClient {
     }
 
     public static func claim(_ code: String, deviceName: String) async throws -> VaultCredentials {
-        guard let c = URLComponents(string: code.trimmingCharacters(in: .whitespacesAndNewlines)), c.scheme == "conch", c.host == "pair",
+        guard let c = URLComponents(string: code.trimmingCharacters(in: .whitespacesAndNewlines)), c.scheme == "tube", c.host == "pair",
               let server = c.queryItems?.first(where: { $0.name == "server" })?.value.flatMap(URL.init(string:)),
               let inviteID = c.queryItems?.first(where: { $0.name == "invite" })?.value,
               let secret = c.queryItems?.first(where: { $0.name == "secret" })?.value.flatMap(Data.init(base64URLEncoded:))
-        else { throw SyncError(status: 0, message: "Not a Conch pairing code") }
+        else { throw SyncError(status: 0, message: "Not a Tube pairing code") }
         let claimed = try await SyncAPI(baseURL: server).claim(inviteID: inviteID, deviceName: deviceName)
         guard let payload = Data(base64Encoded: claimed.payload) else { throw VaultCryptoError.badCiphertext }
         let opened = try VaultCrypto.open(payload, key: VaultCrypto.pairingKey(secret: secret, inviteID: inviteID),
-                                          aad: Data("conch-pair-v1|\(inviteID)".utf8))
+                                          aad: Data("tube-pair-v1|\(inviteID)".utf8))
         guard opened.count == 64 else { throw VaultCryptoError.badCiphertext }
         return VaultCredentials(serverURL: server, vaultID: claimed.device.vault_id, deviceID: claimed.device.device_id,
                                 token: claimed.device.token, epoch: claimed.key_epoch,
@@ -138,7 +138,7 @@ public enum VaultClient {
         let newKey = VaultKey.generate()
         let newEpoch = creds.epoch + 1
         let wrapped = try VaultCrypto.seal(newKey.bytes, key: SymmetricKey(data: creds.kek),
-                                           aad: Data("conch-vk-v1|\(creds.vaultID)".utf8))
+                                           aad: Data("tube-vk-v1|\(creds.vaultID)".utf8))
         try await creds.api.rotateKey(wrappedKey: wrapped, epoch: newEpoch)
         var next = creds
         next.epoch = newEpoch

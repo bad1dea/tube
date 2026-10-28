@@ -1,10 +1,10 @@
 import XCTest
 import Foundation
-import ConchCore
-@testable import ConchSync
+import TubeCore
+@testable import TubeSync
 
 /// Middle step of test/interop.sh: records written by the web client must
-/// decode into ConchCore types the way the iOS app decodes them, and records
+/// decode into TubeCore types the way the iOS app decodes them, and records
 /// written here must be readable by the web client.
 @MainActor
 final class InteropTests: XCTestCase {
@@ -15,9 +15,9 @@ final class InteropTests: XCTestCase {
         let jumpID: String
     }
 
-    func testWebRecordsDecodeAsConchCoreTypes() async throws {
+    func testWebRecordsDecodeAsTubeCoreTypes() async throws {
         let env = ProcessInfo.processInfo.environment
-        guard let file = env["CONCH_INTEROP_FILE"], let server = env["CONCH_SYNC_URL"].flatMap(URL.init(string:)) else {
+        guard let file = env["TUBE_INTEROP_FILE"], let server = env["TUBE_SYNC_URL"].flatMap(URL.init(string:)) else {
             throw XCTSkip("run via test/interop.sh")
         }
         let info = try JSONDecoder().decode(Info.self, from: Data(contentsOf: URL(fileURLWithPath: file)))

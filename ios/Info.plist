@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Conch</string>
+	<string>Tube</string>
 	<key>CFBundleDisplayName</key>
-	<string>Conch</string>
+	<string>Tube</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleExecutable</key>
@@ -29,7 +29,7 @@
 		<string></string>
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Unlock Conch with Face ID.</string>
+	<string>Unlock Tube with Face ID.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to SSH servers on your local network.</string>
 	<key>UISupportedInterfaceOrientations</key>

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
-import ConchCore
-import ConchSSH
+import TubeCore
+import TubeSSH
 
 /// Everything the app persists except secrets. Saved as one JSON file with
 /// complete file protection; secrets are in the Keychain.
@@ -20,7 +20,7 @@ struct LocalData: Codable {
     init() {}
 
     // Missing keys fall back to defaults so adding a field never makes an
-    // older conch.json unreadable.
+    // older tube.json unreadable.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         hosts = try c.decodeIfPresent([Host].self, forKey: .hosts) ?? []
@@ -79,9 +79,9 @@ final class AppStore: ObservableObject {
     init(url: URL? = nil) {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.url = url ?? dir.appendingPathComponent("conch.json")
+        self.url = url ?? dir.appendingPathComponent("tube.json")
         if let raw = try? Data(contentsOf: self.url) {
-            if let decoded = try? JSONDecoder.conch.decode(LocalData.self, from: raw) {
+            if let decoded = try? JSONDecoder.tube.decode(LocalData.self, from: raw) {
                 data = decoded
             } else {
                 // Keep the unreadable file instead of overwriting it on the next save.
@@ -104,7 +104,7 @@ final class AppStore: ObservableObject {
     }
 
     func saveNow() {
-        guard let raw = try? JSONEncoder.conch.encode(data) else { return }
+        guard let raw = try? JSONEncoder.tube.encode(data) else { return }
         try? raw.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
@@ -230,7 +230,7 @@ enum ChainError: Error, CustomStringConvertible {
 }
 
 extension JSONEncoder {
-    static let conch: JSONEncoder = {
+    static let tube: JSONEncoder = {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
         return e
@@ -238,7 +238,7 @@ extension JSONEncoder {
 }
 
 extension JSONDecoder {
-    static let conch: JSONDecoder = {
+    static let tube: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d

@@ -31,7 +31,7 @@ final class KeyboardModel: ObservableObject {
     @Published var panelVisible = false
     @Published var panelTab: PanelTab = .keys
 
-    weak var terminal: ConchTerminalView?
+    weak var terminal: TubeTerminalView?
     var onToggleInputMode: (() -> Void)?
     var clicks = true
 

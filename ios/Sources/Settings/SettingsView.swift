@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import ConchCore
+import TubeCore
 
 struct SettingsView: View {
     @EnvironmentObject var store: AppStore

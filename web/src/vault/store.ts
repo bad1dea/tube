@@ -4,8 +4,8 @@
 import { emptyData, type WebData } from "../model.ts";
 import { b64, localKey, open, randomBytes, seal, unb64 } from "./crypto.ts";
 
-const KEY = "conch.vault.v1";
-const AAD = "conch-local-v1";
+const KEY = "tube.vault.v1";
+const AAD = "tube-local-v1";
 
 interface Stored {
   salt: string;

@@ -13,11 +13,11 @@ struct TerminalTheme: Identifiable, Equatable {
     var id: String { name }
 
     static let all: [TerminalTheme] = [
-        TerminalTheme(name: "Conch Dark", background: 0x14171c, foreground: 0xd6dae0, cursor: 0x7fd1ae,
+        TerminalTheme(name: "Tube Dark", background: 0x14171c, foreground: 0xd6dae0, cursor: 0x7fd1ae,
                       ansi: [0x1d2128, 0xe06c75, 0x8cc68f, 0xe5c07b, 0x6fa8dc, 0xc49bd6, 0x63c5c9, 0xc8ccd2,
                              0x5c6370, 0xff7b85, 0xa5dca8, 0xf2d08e, 0x8bbcf0, 0xd8b3e8, 0x7fd8db, 0xf2f4f7],
                       isDark: true),
-        TerminalTheme(name: "Conch Light", background: 0xfafafa, foreground: 0x2b2f36, cursor: 0x2a7f62,
+        TerminalTheme(name: "Tube Light", background: 0xfafafa, foreground: 0x2b2f36, cursor: 0x2a7f62,
                       ansi: [0x2b2f36, 0xc0392b, 0x2e7d32, 0x9a6a00, 0x1f5fa8, 0x8e3fa3, 0x007c80, 0xd0d3d8,
                              0x6b717c, 0xe0483a, 0x3c9a41, 0xb88400, 0x2f74c8, 0xa857c0, 0x00979c, 0xffffff],
                       isDark: false),

@@ -1,4 +1,4 @@
-// Port of Sources/ConchSync and the iOS AppSyncStore. Protocol: docs/sync-protocol.md.
+// Port of Sources/TubeSync and the iOS AppSyncStore. Protocol: docs/sync-protocol.md.
 
 import type { Host, HostGroup, Identity, KnownHostKey, Secret, Snippet, SyncCredentials, WebData } from "../model.ts";
 import {
@@ -49,7 +49,7 @@ export async function createVault(server: string, deviceName: string, registrati
   const dev = await api<{ device_id: string; token: string }>(server, "POST", "v1/vaults", undefined, {
     vault_id: vaultID, wrapped_key: b64(await seal(key, k, vkAAD(vaultID))),
     recovery_auth: b64(await recoveryAuth(rk, vaultID)), device_name: deviceName,
-  }, registration ? { "x-conch-registration": registration } : {});
+  }, registration ? { "x-tube-registration": registration } : {});
   return {
     creds: { serverURL: server, vaultID, deviceID: dev.device_id, token: dev.token, epoch: 1, keys: { 1: b64(key) }, kek: b64(k) },
     recoveryKey: recoveryKeyDisplay(rk),
@@ -72,12 +72,12 @@ export async function invite(c: SyncCredentials): Promise<string> {
   const payload = await seal(concat(vk(c, c.epoch), unb64(c.kek)), await pairingKey(secret, inviteID), pairAAD(inviteID));
   await api(c.serverURL, "POST", "v1/pairing", c.token, { invite_id: inviteID, payload: b64(payload) });
   const q = new URLSearchParams({ server: c.serverURL, invite: inviteID, secret: b64url(secret) });
-  return `conch://pair?${q}`;
+  return `tube://pair?${q}`;
 }
 
 export async function claim(code: string, deviceName: string): Promise<SyncCredentials> {
-  const m = code.trim().match(/^conch:\/\/pair\?(.*)$/);
-  if (!m) throw new Error("Not a Conch pairing code");
+  const m = code.trim().match(/^tube:\/\/pair\?(.*)$/);
+  if (!m) throw new Error("Not a Tube pairing code");
   const q = new URLSearchParams(m[1]);
   const server = q.get("server"), inviteID = q.get("invite"), secret = q.get("secret");
   if (!server || !inviteID || !secret) throw new Error("Pairing code is incomplete");

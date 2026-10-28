@@ -3,12 +3,12 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY sync sync
 COPY gateway gateway
-RUN cargo build --release -p conch-gateway
+RUN cargo build --release -p tube-gateway
 
 FROM docker.io/library/debian:bookworm-slim
-RUN useradd -r -u 10001 conch
-COPY --from=build /src/target/release/conch-gateway /usr/local/bin/conch-gateway
-USER conch
+RUN useradd -r -u 10001 tube
+COPY --from=build /src/target/release/tube-gateway /usr/local/bin/tube-gateway
+USER tube
 EXPOSE 8081
-ENV CONCH_LISTEN=0.0.0.0:8081
-CMD ["conch-gateway"]
+ENV TUBE_LISTEN=0.0.0.0:8081
+CMD ["tube-gateway"]

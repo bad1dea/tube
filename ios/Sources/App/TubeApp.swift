@@ -2,7 +2,7 @@ import SwiftUI
 import LocalAuthentication
 
 @main
-struct ConchApp: App {
+struct TubeApp: App {
     @StateObject private var store: AppStore
     @StateObject private var trust: HostKeyTrust
     @StateObject private var sessions: SessionManager
@@ -67,7 +67,7 @@ final class AppLock: ObservableObject {
 
     func unlock() {
         let ctx = LAContext()
-        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock Conch") { ok, _ in
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock Tube") { ok, _ in
             Task { @MainActor in if ok { self.locked = false } }
         }
     }

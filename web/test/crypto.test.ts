@@ -11,8 +11,8 @@ test("matches the Swift test vector", async () => {
   const rk = range(0, 20);
   const vk = range(100, 132);
   assert.equal(recoveryKeyDisplay(rk), "AAAQ-EAYE-AUDA-OCAJ-BIFQ-YDIO-B4IB-CEQT");
-  assert.equal(b64(await recoveryAuth(rk, "vault-test")), "yS2CxAdPAZj3DkxzyheNaVhfmlx39gk0GS57tPq+aNY=");
-  assert.equal(b64(await recordKey(vk, "vault-test")), "IYxuB5g+yb1iZ2mLpVoiu6A04J/v8DEFg9d/J7B2X5Q=");
+  assert.equal(b64(await recoveryAuth(rk, "vault-test")), "PI0075RFvxEL4uVbeFlTSsKnTd+UL6onZdftX9G8Mpo=");
+  assert.equal(b64(await recordKey(vk, "vault-test")), "w7dOgz2l/n1IJS5godqscl1jgBK8TV66jJdU+SQfus4=");
 });
 
 test("base32 round trip and recovery key parsing", () => {
@@ -34,7 +34,7 @@ test("seal binds AAD", async () => {
 });
 
 test("wrapped vault key format matches Swift wrap()", async () => {
-  // Swift: seal(VK, key: KEK(RK, vaultID), aad: "conch-vk-v1|<vaultID>")
+  // Swift: seal(VK, key: KEK(RK, vaultID), aad: "tube-vk-v1|<vaultID>")
   const rk = range(0, 20);
   const vk = range(100, 132);
   const k = await kek(rk, "vault-test");

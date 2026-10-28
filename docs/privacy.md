@@ -1,8 +1,8 @@
-# Conch privacy policy
+# Tube privacy policy
 
 Last updated 2026-10-28.
 
-Conch does not collect, transmit or sell any data to its developers. There are
+Tube does not collect, transmit or sell any data to its developers. There are
 no analytics, no crash reporting services and no accounts.
 
 ## On your device

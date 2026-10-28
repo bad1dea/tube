@@ -2,16 +2,16 @@ import XCTest
 import Foundation
 import NIOCore
 import NIOPosix
-import ConchCore
-@testable import ConchSSH
+import TubeCore
+@testable import TubeSSH
 
-/// SFTP and port forwarding against test/sshd. CONCH_SSH_TESTS=1.
+/// SFTP and port forwarding against test/sshd. TUBE_SSH_TESTS=1.
 final class TransferTests: XCTestCase {
     let keys = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .appendingPathComponent("../../test/sshd/keys").standardized
 
     override func setUpWithError() throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["CONCH_SSH_TESTS"] == "1")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["TUBE_SSH_TESTS"] == "1")
     }
 
     func connect() async throws -> SSHConnection {
@@ -34,7 +34,7 @@ final class TransferTests: XCTestCase {
         var payload = Data(count: 300_000)
         for i in 0..<payload.count { payload[i] = UInt8((i * 7 + i / 251) & 0xff) }
         let tmp = FileManager.default.temporaryDirectory
-        let up = tmp.appendingPathComponent("conch-up-\(UUID())")
+        let up = tmp.appendingPathComponent("tube-up-\(UUID())")
         try payload.write(to: up)
         let ticks = Counter()
         try await fb.upload(up, to: dir + "/blob.bin") { done, total in
@@ -52,7 +52,7 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(list[0].size, 300_000)
         XCTAssertFalse(list[0].isDirectory)
 
-        let down = tmp.appendingPathComponent("conch-down-\(UUID())")
+        let down = tmp.appendingPathComponent("tube-down-\(UUID())")
         try await fb.download(dir + "/blob.bin", to: down)
         XCTAssertEqual(try Data(contentsOf: down), payload)
 

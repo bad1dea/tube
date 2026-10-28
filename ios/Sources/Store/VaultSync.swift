@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
 import Crypto
-import ConchCore
-import ConchSync
+import TubeCore
+import TubeSync
 
 /// Maps AppStore contents to sync records:
 ///

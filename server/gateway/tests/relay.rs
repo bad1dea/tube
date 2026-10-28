@@ -1,4 +1,4 @@
-use conch_gateway::{authorize, router, token_hash, AllowRule, Config, Gateway};
+use tube_gateway::{authorize, router, token_hash, AllowRule, Config, Gateway};
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::IpAddr, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -160,7 +160,7 @@ async fn origin_is_checked() {
     let port = echo_server().await;
     let url = start(
         &[&format!("127.0.0.1:{port}")],
-        vec!["https://conch.example".into()],
+        vec!["https://tube.example".into()],
     )
     .await;
     let mut req = url.clone().into_client_request().unwrap();
@@ -169,6 +169,6 @@ async fn origin_is_checked() {
     assert!(tokio_tungstenite::connect_async(req).await.is_err());
     let mut req = url.into_client_request().unwrap();
     req.headers_mut()
-        .insert("origin", "https://conch.example".parse().unwrap());
+        .insert("origin", "https://tube.example".parse().unwrap());
     assert!(tokio_tungstenite::connect_async(req).await.is_ok());
 }

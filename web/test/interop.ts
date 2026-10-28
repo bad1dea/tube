@@ -1,12 +1,12 @@
 // Cross-platform check, driven by test/interop.sh:
 //   node interop.ts create <file>   web creates a vault with a host, writes {vaultID, recoveryKey}
-//   (Swift test recovers, decodes the host with ConchCore types, pushes a snippet)
+//   (Swift test recovers, decodes the host with TubeCore types, pushes a snippet)
 //   node interop.ts verify <file>   web recovers and expects the Swift snippet
 import { readFileSync, writeFileSync } from "node:fs";
 import { emptyData, newHost } from "../src/model.ts";
 import * as s from "../src/vault/sync.ts";
 
-const server = process.env.CONCH_SYNC_URL!;
+const server = process.env.TUBE_SYNC_URL!;
 const [, , mode, file] = process.argv;
 
 if (mode === "create") {

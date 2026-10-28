@@ -41,7 +41,7 @@ export function TerminalTab({ tab, active, relayURL, relayToken, themeName, font
     const t = new XTerm({
       fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
       fontSize,
-      theme: themes[themeName] ?? themes["Conch Dark"],
+      theme: themes[themeName] ?? themes["Tube Dark"],
       cursorBlink: true,
       scrollback: 10000,
       allowProposedApi: true,
@@ -76,7 +76,7 @@ export function TerminalTab({ tab, active, relayURL, relayToken, themeName, font
 
   useEffect(() => {
     if (term.current) {
-      term.current.options.theme = themes[themeName] ?? themes["Conch Dark"];
+      term.current.options.theme = themes[themeName] ?? themes["Tube Dark"];
       term.current.options.fontSize = fontSize;
       fit.current?.fit();
     }

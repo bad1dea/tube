@@ -1,6 +1,6 @@
 import Foundation
-import ConchCore
-import ConchSSH
+import TubeCore
+import TubeSSH
 
 struct HostKeyQuestion: Identifiable {
     let id = UUID()

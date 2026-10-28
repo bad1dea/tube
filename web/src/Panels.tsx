@@ -156,7 +156,7 @@ export function IdentitiesPanel({ data, commit, onClose }: { data: WebData; comm
       <div className="actions left">
         <button onClick={async () => {
           const ssh = await loadSSH();
-          const k = ssh.generateKey(label || "conch-web");
+          const k = ssh.generateKey(label || "tube-web");
           add(k.privateKey, k.publicKey, "");
         }}>Generate Ed25519</button>
       </div>
@@ -219,7 +219,7 @@ export function SettingsPanel({ data, commit, onClose }: { data: WebData; commit
   return (
     <Modal title="Settings" onClose={onClose} wide>
       <h3>Gateway</h3>
-      <p className="muted small">The browser cannot open TCP connections, so SSH traffic goes through a conch-gateway relay. SSH itself runs in this page: the gateway carries encrypted bytes and never sees passwords, keys or terminal contents. It does see which host and port you connect to.</p>
+      <p className="muted small">The browser cannot open TCP connections, so SSH traffic goes through a tube-gateway relay. SSH itself runs in this page: the gateway carries encrypted bytes and never sees passwords, keys or terminal contents. It does see which host and port you connect to.</p>
       <label>Relay URL<input value={st.gatewayURL} placeholder="wss://gateway.example.com/relay" onChange={(e) => commit((d) => { d.settings.gatewayURL = e.target.value.trim(); })} /></label>
       <label>Token<input type="password" value={st.gatewayToken} onChange={(e) => commit((d) => { d.settings.gatewayToken = e.target.value.trim(); })} /></label>
       <h3>Terminal</h3>
@@ -281,7 +281,7 @@ export function SyncPanel({ data, commit, runSync, onClose }: { data: WebData; c
       <Modal title="Sync" onClose={onClose} wide>
         <p className="muted">Off. Data stays in this browser, encrypted with your passphrase. Sync uses a server you run (docker compose up -d); data is encrypted here before upload.</p>
         <h3>Join with a pairing code</h3>
-        <label>Code<input className="mono" value={code} onChange={(e) => setCode(e.target.value)} placeholder="conch://pair?..." /></label>
+        <label>Code<input className="mono" value={code} onChange={(e) => setCode(e.target.value)} placeholder="tube://pair?..." /></label>
         <div className="actions left"><button disabled={busy || !code} onClick={run(async () => adopt(await syncAPI.claim(code, name)))}>Join</button></div>
         <h3>Recover</h3>
         <div className="grid2">

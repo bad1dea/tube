@@ -1,6 +1,6 @@
 import XCTest
 import Crypto
-@testable import ConchCore
+@testable import TubeCore
 
 final class SSHConfigTests: XCTestCase {
     let sample = """
@@ -156,7 +156,7 @@ final class VaultCryptoTests: XCTestCase {
         XCTAssertEqual(rk.displayString, "AAAQ-EAYE-AUDA-OCAJ-BIFQ-YDIO-B4IB-CEQT")
         let auth = VaultCrypto.recoveryAuth(recovery: rk, vaultID: "vault-test")
         let rec = VaultCrypto.recordKey(vk, vaultID: "vault-test").withUnsafeBytes { Data($0) }
-        XCTAssertEqual(auth.base64EncodedString(), "yS2CxAdPAZj3DkxzyheNaVhfmlx39gk0GS57tPq+aNY=")
-        XCTAssertEqual(rec.base64EncodedString(), "IYxuB5g+yb1iZ2mLpVoiu6A04J/v8DEFg9d/J7B2X5Q=")
+        XCTAssertEqual(auth.base64EncodedString(), "PI0075RFvxEL4uVbeFlTSsKnTd+UL6onZdftX9G8Mpo=")
+        XCTAssertEqual(rec.base64EncodedString(), "w7dOgz2l/n1IJS5godqscl1jgBK8TV66jJdU+SQfus4=")
     }
 }

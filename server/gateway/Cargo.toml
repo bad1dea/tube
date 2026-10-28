@@ -1,9 +1,9 @@
 [package]
-name = "conch-gateway"
+name = "tube-gateway"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "WebSocket to TCP relay for the Conch web client. SSH runs in the browser; this only moves encrypted bytes."
+description = "WebSocket to TCP relay for the Tube web client. SSH runs in the browser; this only moves encrypted bytes."
 
 [dependencies]
 axum = { version = "0.8", features = ["ws"] }

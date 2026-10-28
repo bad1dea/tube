@@ -14,11 +14,11 @@ jobs:
         with:
           swift-version: "6.1"
       - name: Unit tests
-        run: swift test --filter 'TermInputTests|ConchCoreTests'
+        run: swift test --filter 'TermInputTests|TubeCoreTests'
       - name: Start test sshd containers
         run: test/sshd/up.sh
       - name: SSH integration tests
-        run: CONCH_SSH_TESTS=1 swift test --filter ConchSSHTests
+        run: TUBE_SSH_TESTS=1 swift test --filter TubeSSHTests
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -40,7 +40,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - name: Docker image builds
-        run: docker build -t conch-sync .
+        run: docker build -t tube-sync .
 
   web:
     runs-on: ubuntu-24.04

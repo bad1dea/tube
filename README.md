@@ -1,4 +1,4 @@
-# Conch
+# Tube
 
 SSH client for iPhone and iPad, with a browser client and optional
 self-hosted, end-to-end encrypted sync. No account, no subscription, no
@@ -31,12 +31,12 @@ docker compose up -d
 ```
 
 This starts the sync server, the SSH relay and the web client behind Caddy
-(automatic TLS for `CONCH_DOMAIN`). iOS only needs the sync service.
+(automatic TLS for `TUBE_DOMAIN`). iOS only needs the sync service.
 
 Create a relay token:
 
 ```sh
-docker compose run --rm gateway conch-gateway token alice
+docker compose run --rm gateway tube-gateway token alice
 ```
 
 ## Development
@@ -45,8 +45,8 @@ Linux is enough for everything except compiling the iOS app, which runs on a
 GitHub macOS runner (`gh workflow run ios-build.yml`).
 
 ```sh
-swift test --filter 'TermInputTests|ConchCoreTests'
-test/sshd/up.sh && CONCH_SSH_TESTS=1 swift test --filter ConchSSHTests
+swift test --filter 'TermInputTests|TubeCoreTests'
+test/sshd/up.sh && TUBE_SSH_TESTS=1 swift test --filter TubeSSHTests
 test/sync.sh          # Swift + web sync clients against the Rust server
 test/interop.sh       # records written by web are read by Swift and back
 test/web-ssh.sh       # browser SSH module through the relay to test sshd

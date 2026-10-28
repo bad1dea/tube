@@ -8,12 +8,12 @@ been run on a device or simulator.
 
 Existing project `~/ios` (PrivateGallery) on amy builds on GitHub Actions
 `macos-26` with XcodeGen and fastlane, manual signing from repo secrets,
-upload to TestFlight. Conch reuses that pipeline. Dev machines are Fedora
+upload to TestFlight. Tube reuses that pipeline. Dev machines are Fedora
 (leela, amy); no local Xcode.
 
 ## M1 Scaffold — done
 
-ConchKit Swift package (Linux-testable), iOS app via XcodeGen, Rust server
+TubeKit Swift package (Linux-testable), iOS app via XcodeGen, Rust server
 workspace, React web app, test containers, CI.
 
 ## M2 iOS SSH and hosts — compiles, core tested

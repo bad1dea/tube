@@ -1,6 +1,6 @@
 import UIKit
 import SwiftUI
-import ConchCore
+import TubeCore
 
 @MainActor
 final class SessionManager: ObservableObject {

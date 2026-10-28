@@ -1,11 +1,11 @@
 import XCTest
 import Foundation
-import ConchCore
+import TubeCore
 import TermInput
-@testable import ConchSSH
+@testable import TubeSSH
 
 // Runs against test/sshd (start with test/sshd/up.sh). Skipped unless
-// CONCH_SSH_TESTS=1 so `swift test` works without containers.
+// TUBE_SSH_TESTS=1 so `swift test` works without containers.
 
 final class MemoryTrust: HostKeyTrustStore, @unchecked Sendable {
     var known = KnownHosts()
@@ -30,7 +30,7 @@ final class SSHIntegrationTests: XCTestCase {
         .appendingPathComponent("../../test/sshd/keys").standardized
 
     override func setUpWithError() throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["CONCH_SSH_TESTS"] == "1", "set CONCH_SSH_TESTS=1 with test/sshd running")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["TUBE_SSH_TESTS"] == "1", "set TUBE_SSH_TESTS=1 with test/sshd running")
     }
 
     func key(_ name: String) throws -> String {

@@ -1,4 +1,4 @@
-{$CONCH_DOMAIN} {
+{$TUBE_DOMAIN} {
 	encode gzip zstd
 	header {
 		Strict-Transport-Security "max-age=31536000"

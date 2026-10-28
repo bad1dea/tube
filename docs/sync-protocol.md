@@ -48,7 +48,7 @@ learn about them.
 1. Existing device picks a random 16-byte invite id and a random 32-byte
    secret, seals VK under the pairing key (docs/vault-crypto.md), and POSTs the
    payload.
-2. It shows `conch-pair:<server>/<inviteID>/<secret base64url>` as a QR code
+2. It shows `tube-pair:<server>/<inviteID>/<secret base64url>` as a QR code
    and text.
 3. New device claims the invite, receives a token and the payload, derives the
    pairing key from the secret, and opens VK.
@@ -58,6 +58,6 @@ The server never receives the secret.
 ## Deployment
 
 `docker compose up -d` at the repo root runs the server behind Caddy with
-automatic TLS. Set `CONCH_REGISTRATION_TOKEN` on anything reachable from the
+automatic TLS. Set `TUBE_REGISTRATION_TOKEN` on anything reachable from the
 internet. Data is one SQLite file in the `sync-data` volume; back it up with
-`sqlite3 conch-sync.db ".backup out.db"` or by copying it while stopped.
+`sqlite3 tube-sync.db ".backup out.db"` or by copying it while stopped.

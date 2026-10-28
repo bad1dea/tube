@@ -6,9 +6,9 @@ import Crypto
 //
 //   vault key VK      32 random bytes, never leaves a device unwrapped
 //   recovery key RK   20 random bytes, shown once as base32 groups
-//   KEK               HKDF-SHA256(RK, salt: vaultID, info: "conch-kek-v1")
-//   recovery auth     HKDF-SHA256(RK, salt: vaultID, info: "conch-recovery-auth-v1")
-//   record key        HKDF-SHA256(VK, salt: vaultID, info: "conch-record-v1")
+//   KEK               HKDF-SHA256(RK, salt: vaultID, info: "tube-kek-v1")
+//   recovery auth     HKDF-SHA256(RK, salt: vaultID, info: "tube-recovery-auth-v1")
+//   record key        HKDF-SHA256(VK, salt: vaultID, info: "tube-record-v1")
 //   sealed            nonce(12) || ciphertext || tag(16), AES-256-GCM
 //
 // RK is random rather than a user password, so a fast KDF is enough and the
@@ -65,17 +65,17 @@ public enum VaultCrypto {
     }
 
     public static func kek(recovery: RecoveryKey, vaultID: String) -> SymmetricKey {
-        hkdf(recovery.bytes, salt: vaultID, info: "conch-kek-v1")
+        hkdf(recovery.bytes, salt: vaultID, info: "tube-kek-v1")
     }
 
     /// Sent to the server to prove possession of RK during recovery enrolment.
     /// The server stores only SHA-256 of this value.
     public static func recoveryAuth(recovery: RecoveryKey, vaultID: String) -> Data {
-        hkdf(recovery.bytes, salt: vaultID, info: "conch-recovery-auth-v1").withUnsafeBytes { Data($0) }
+        hkdf(recovery.bytes, salt: vaultID, info: "tube-recovery-auth-v1").withUnsafeBytes { Data($0) }
     }
 
     public static func recordKey(_ vk: VaultKey, vaultID: String) -> SymmetricKey {
-        hkdf(vk.bytes, salt: vaultID, info: "conch-record-v1")
+        hkdf(vk.bytes, salt: vaultID, info: "tube-record-v1")
     }
 
     public static func seal(_ plaintext: Data, key: SymmetricKey, aad: Data) throws -> Data {
@@ -93,13 +93,13 @@ public enum VaultCrypto {
     }
 
     public static func wrap(_ vk: VaultKey, recovery: RecoveryKey, vaultID: String) throws -> Data {
-        try seal(vk.bytes, key: kek(recovery: recovery, vaultID: vaultID), aad: Data("conch-vk-v1|\(vaultID)".utf8))
+        try seal(vk.bytes, key: kek(recovery: recovery, vaultID: vaultID), aad: Data("tube-vk-v1|\(vaultID)".utf8))
     }
 
     public static func unwrap(_ wrapped: Data, recovery: RecoveryKey, vaultID: String) throws -> VaultKey {
         do {
             return VaultKey(bytes: try open(wrapped, key: kek(recovery: recovery, vaultID: vaultID),
-                                            aad: Data("conch-vk-v1|\(vaultID)".utf8)))
+                                            aad: Data("tube-vk-v1|\(vaultID)".utf8)))
         } catch {
             throw VaultCryptoError.badRecoveryKey
         }
@@ -108,13 +108,13 @@ public enum VaultCrypto {
     /// AAD binds a ciphertext to its record id and kind so the server cannot swap
     /// records between ids or present a host record as an identity.
     public static func recordAAD(vaultID: String, recordID: String, kind: String) -> Data {
-        Data("conch-record-v1|\(vaultID)|\(recordID)|\(kind)".utf8)
+        Data("tube-record-v1|\(vaultID)|\(recordID)|\(kind)".utf8)
     }
 
     /// Pairing transfers VK to a new device through the server, encrypted under a
     /// one-time secret that travels out of band (QR code or typed).
     public static func pairingKey(secret: Data, inviteID: String) -> SymmetricKey {
-        hkdf(secret, salt: inviteID, info: "conch-pair-v1")
+        hkdf(secret, salt: inviteID, info: "tube-pair-v1")
     }
 }
 

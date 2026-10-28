@@ -128,7 +128,7 @@ public struct SyncAPI: Sendable {
         return try await request("POST", "v1/vaults",
                                  body: Body(vault_id: vaultID, wrapped_key: wrappedKey.base64EncodedString(),
                                             recovery_auth: recoveryAuth.base64EncodedString(), device_name: deviceName),
-                                 headers: registrationToken.map { ["x-conch-registration": $0] } ?? [:])
+                                 headers: registrationToken.map { ["x-tube-registration": $0] } ?? [:])
     }
 
     public func vault() async throws -> VaultInfo {

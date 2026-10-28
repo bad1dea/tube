@@ -1,4 +1,4 @@
-// Mirrors ConchCore models. Field names and required fields must match the
+// Mirrors TubeCore models. Field names and required fields must match the
 // Swift Codable types or iOS will drop synced records it cannot decode.
 // Dates are milliseconds since 1970, ids are upper-case UUIDs (Swift's form).
 
@@ -105,7 +105,7 @@ export interface WebData {
 export function emptyData(): WebData {
   return {
     hosts: [], groups: [], identities: [], snippets: [], knownHosts: [], secrets: {}, history: [],
-    settings: { gatewayURL: "", gatewayToken: "", themeName: "Conch Dark", fontSize: 14 },
+    settings: { gatewayURL: "", gatewayToken: "", themeName: "Tube Dark", fontSize: 14 },
     sync: { cursor: 0, meta: {} },
   };
 }

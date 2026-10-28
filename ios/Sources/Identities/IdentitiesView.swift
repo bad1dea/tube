@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import ConchCore
+import TubeCore
 
 struct IdentitiesView: View {
     @EnvironmentObject var store: AppStore
@@ -48,7 +48,7 @@ struct IdentitiesView: View {
 struct GenerateKeyView: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.dismiss) private var dismiss
-    @State private var label = "conch@\(UIDevice.current.name)"
+    @State private var label = "tube@\(UIDevice.current.name)"
     @State private var error: String?
 
     var body: some View {

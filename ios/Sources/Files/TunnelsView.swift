@@ -1,6 +1,6 @@
 import SwiftUI
-import ConchCore
-import ConchSSH
+import TubeCore
+import TubeSSH
 
 /// Running forwards, one SSH connection per host. iOS suspends the app soon
 /// after it leaves the foreground, which stops every forward; there is no way
@@ -48,7 +48,7 @@ final class TunnelManager: ObservableObject {
         for id in running.keys where handles[id]?.isAlive == false {
             handles[id] = nil
             running[id] = nil
-            errors[id] = "Stopped while Conch was in the background"
+            errors[id] = "Stopped while Tube was in the background"
         }
     }
 
@@ -98,7 +98,7 @@ struct TunnelsView: View {
             Section {
                 EmptyView()
             } footer: {
-                Text("Forwards run while Conch is in the foreground. iOS suspends the app shortly after you switch away, which closes them.")
+                Text("Forwards run while Tube is in the foreground. iOS suspends the app shortly after you switch away, which closes them.")
             }
         }
         .navigationTitle("Tunnels")

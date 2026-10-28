@@ -1,4 +1,4 @@
-//! Conch sync server. Holds wrapped vault keys and AES-GCM record ciphertext;
+//! Tube sync server. Holds wrapped vault keys and AES-GCM record ciphertext;
 //! it never sees a vault key or plaintext. See docs/sync-protocol.md.
 
 pub mod db;
@@ -61,7 +61,7 @@ pub fn router(state: AppState) -> Router {
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
-            header::HeaderName::from_static("x-conch-registration"),
+            header::HeaderName::from_static("x-tube-registration"),
         ]);
     Router::new()
         .route("/healthz", get(|| async { "ok" }))
@@ -293,7 +293,7 @@ async fn create_vault(
         .check(format!("create|{}", client_key(&state, &headers, addr)))?;
     if let Some(expected) = &state.registration_token {
         let given = headers
-            .get("x-conch-registration")
+            .get("x-tube-registration")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         if !ct_eq(given.as_bytes(), expected.as_bytes()) {

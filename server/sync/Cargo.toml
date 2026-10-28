@@ -1,9 +1,9 @@
 [package]
-name = "conch-sync"
+name = "tube-sync"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Self-hosted sync for Conch. Stores end-to-end encrypted vault records only."
+description = "Self-hosted sync for Tube. Stores end-to-end encrypted vault records only."
 
 [dependencies]
 axum = "0.8"

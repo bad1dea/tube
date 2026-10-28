@@ -1,6 +1,6 @@
 default_platform(:ios)
 
-# Builds Conch on a cloud macOS runner and ships it to TestFlight.
+# Builds Tube on a cloud macOS runner and ships it to TestFlight.
 # MANUAL signing: the workflow installs a fixed distribution cert + App Store
 # provisioning profile (from repo secrets) into a temp keychain, and we sign
 # with them explicitly. No automatic signing → no throwaway Apple Development
@@ -12,7 +12,7 @@ default_platform(:ios)
 # TestFlight emails testers ("ready to test"). No second manual step. The
 # `distribute` and `status` lanes remain as standalone tools.
 
-APP_BUNDLE_ID = "pro.imnot.conch".freeze
+APP_BUNDLE_ID = "pro.imnot.tube".freeze
 
 # Authenticate Spaceship's ConnectAPI with the ASC key (base64 in ENV).
 def asc_login
@@ -115,7 +115,7 @@ platform :ios do
     # sh (runs in fastlane/), Ruby actions (validate from the fastlane root
     # ios/), and gym's xcodebuild (runs in fastlane/), so no relative
     # path satisfies all three. __dir__ is fastlane/, so ../ is ios/.
-    project = File.expand_path("../Conch.xcodeproj", __dir__)
+    project = File.expand_path("../Tube.xcodeproj", __dir__)
     outdir  = File.expand_path("../build", __dir__)
 
     # Regenerate the .xcodeproj from project.yml (never committed). sh runs from
@@ -127,11 +127,11 @@ platform :ios do
     increment_build_number(build_number: build_no, xcodeproj: project)
 
     team    = ENV.fetch("DEVELOPMENT_TEAM")
-    profile = ENV.fetch("PROFILE_NAME")          # "Conch AppStore"
+    profile = ENV.fetch("PROFILE_NAME")          # "Tube AppStore"
 
     build_app(
       project: project,
-      scheme: "Conch",
+      scheme: "Tube",
       export_method: "app-store",
       # Manual signing — use the cert already imported into the keychain + the
       # installed profile. No -allowProvisioningUpdates, so nothing is minted.
@@ -145,7 +145,7 @@ platform :ios do
         provisioningProfiles: { APP_BUNDLE_ID => profile }
       },
       output_directory: outdir,
-      output_name: "Conch.ipa",
+      output_name: "Tube.ipa",
       clean: true
     )
 

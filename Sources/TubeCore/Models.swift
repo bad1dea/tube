@@ -100,7 +100,7 @@ public struct TerminalSettings: Codable, Hashable, Sendable {
     public var fontSize: Double
     public var backspaceSendsControlH: Bool
 
-    public init(themeName: String = "Conch Dark", fontName: String = "Menlo", fontSize: Double = 13,
+    public init(themeName: String = "Tube Dark", fontName: String = "Menlo", fontSize: Double = 13,
                 backspaceSendsControlH: Bool = false) {
         self.themeName = themeName
         self.fontName = fontName

@@ -1,6 +1,6 @@
 # Vault encryption
 
-Implemented in `Sources/ConchCore/VaultCrypto.swift`. Web and server code must
+Implemented in `Sources/TubeCore/VaultCrypto.swift`. Web and server code must
 match it byte for byte; the fixed vector at the end is asserted in Swift tests.
 
 ## Keys
@@ -9,10 +9,10 @@ match it byte for byte; the fixed vector at the end is asserted in Swift tests.
 |------|------|--------|
 | VK, vault key | 32 bytes | random, created with the vault |
 | RK, recovery key | 20 bytes | random, shown once to the user as base32 |
-| KEK | 32 bytes | HKDF-SHA256(ikm=RK, salt=vaultID, info="conch-kek-v1") |
-| recovery auth | 32 bytes | HKDF-SHA256(ikm=RK, salt=vaultID, info="conch-recovery-auth-v1") |
-| record key | 32 bytes | HKDF-SHA256(ikm=VK, salt=vaultID, info="conch-record-v1") |
-| pairing key | 32 bytes | HKDF-SHA256(ikm=pairing secret, salt=inviteID, info="conch-pair-v1") |
+| KEK | 32 bytes | HKDF-SHA256(ikm=RK, salt=vaultID, info="tube-kek-v1") |
+| recovery auth | 32 bytes | HKDF-SHA256(ikm=RK, salt=vaultID, info="tube-recovery-auth-v1") |
+| record key | 32 bytes | HKDF-SHA256(ikm=VK, salt=vaultID, info="tube-record-v1") |
+| pairing key | 32 bytes | HKDF-SHA256(ikm=pairing secret, salt=inviteID, info="tube-pair-v1") |
 
 Salts and info strings are UTF-8. HKDF output length is 32.
 
@@ -30,9 +30,9 @@ AES-256-GCM, 12-byte random nonce, 16-byte tag. Sealed form is
 
 | What | Key | AAD |
 |------|-----|-----|
-| wrapped VK | KEK | `conch-vk-v1|<vaultID>` |
-| record | record key | `conch-record-v1|<vaultID>|<recordID>|<kind>` |
-| pairing payload (VK) | pairing key | `conch-pair-v1|<inviteID>` |
+| wrapped VK | KEK | `tube-vk-v1|<vaultID>` |
+| record | record key | `tube-record-v1|<vaultID>|<recordID>|<kind>` |
+| pairing payload (VK) | pairing key | `tube-pair-v1|<inviteID>` |
 
 The record AAD stops the server from moving a ciphertext to another record id
 or presenting a host record as an identity.
@@ -71,8 +71,8 @@ VK  = 64 65 66 ... 83            (bytes 100..131)
 vaultID = "vault-test"
 
 RK display     AAAQ-EAYE-AUDA-OCAJ-BIFQ-YDIO-B4IB-CEQT
-recovery auth  yS2CxAdPAZj3DkxzyheNaVhfmlx39gk0GS57tPq+aNY=
-record key     IYxuB5g+yb1iZ2mLpVoiu6A04J/v8DEFg9d/J7B2X5Q=
+recovery auth  PI0075RFvxEL4uVbeFlTSsKnTd+UL6onZdftX9G8Mpo=
+record key     w7dOgz2l/n1IJS5godqscl1jgBK8TV66jJdU+SQfus4=
 ```
 
 Checked against an independent Python HMAC implementation of HKDF.

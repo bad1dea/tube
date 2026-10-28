@@ -1,7 +1,7 @@
 import SwiftUI
 import CoreImage.CIFilterBuiltins
-import ConchCore
-import ConchSync
+import TubeCore
+import TubeSync
 
 struct SyncView: View {
     @EnvironmentObject var store: AppStore
@@ -71,7 +71,7 @@ struct SyncView: View {
                     Button("Join with a pairing code") { mode = .join }
                     Button("Recover with recovery key") { mode = .recover }
                 } footer: {
-                    Text("Sync needs a Conch sync server you run yourself (docker compose up -d). Everything is encrypted on this device before upload; the server cannot read it.")
+                    Text("Sync needs a Tube sync server you run yourself (docker compose up -d). Everything is encrypted on this device before upload; the server cannot read it.")
                 }
             }
             if let err = sync.lastError {
@@ -153,7 +153,7 @@ struct SyncSetupView: View {
                 Section {
                     Text(rk.displayString).font(.title3.monospaced()).textSelection(.enabled)
                     LabeledContent("Vault") { Text(vault).font(.caption.monospaced()).textSelection(.enabled) }
-                    Button("Copy both") { UIPasteboard.general.string = "Conch vault \(vault)\nRecovery key \(rk.displayString)" }
+                    Button("Copy both") { UIPasteboard.general.string = "Tube vault \(vault)\nRecovery key \(rk.displayString)" }
                     Toggle("I saved the recovery key somewhere safe", isOn: $savedKey)
                 } header: {
                     Text("Recovery key")
@@ -169,7 +169,7 @@ struct SyncSetupView: View {
                     }
                 case .join:
                     Section {
-                        TextField("conch://pair?...", text: $code, axis: .vertical).font(.caption.monospaced())
+                        TextField("tube://pair?...", text: $code, axis: .vertical).font(.caption.monospaced())
                         Button("Paste") { code = UIPasteboard.general.string ?? "" }
                     } footer: {
                         Text("On a device that already syncs, open Sync and tap Show pairing code.")

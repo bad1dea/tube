@@ -27,7 +27,7 @@ export interface SSHSession {
   close(): void;
 }
 
-interface ConchSSH {
+interface TubeSSH {
   connect(o: ConnectOptions): Promise<SSHSession>;
   generateKey(comment: string): { privateKey: string; publicKey: string };
   publicKey(privateKey: string, passphrase?: string): string | Error;
@@ -35,24 +35,24 @@ interface ConchSSH {
 
 declare global {
   // eslint-disable-next-line no-var
-  var conchSSH: ConchSSH | undefined;
+  var tubeSSH: TubeSSH | undefined;
   // eslint-disable-next-line no-var
-  var conchSSHReady: (() => void) | undefined;
+  var tubeSSHReady: (() => void) | undefined;
   // eslint-disable-next-line no-var
   var Go: new () => { importObject: WebAssembly.Imports; run(i: WebAssembly.Instance): Promise<void> };
 }
 
-let loading: Promise<ConchSSH> | null = null;
+let loading: Promise<TubeSSH> | null = null;
 
-export function loadSSH(): Promise<ConchSSH> {
+export function loadSSH(): Promise<TubeSSH> {
   if (loading) return loading;
-  loading = new Promise<ConchSSH>((resolve, reject) => {
+  loading = new Promise<TubeSSH>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = "/wasm_exec.js";
     script.onerror = () => reject(new Error("Failed to load wasm_exec.js"));
     script.onload = async () => {
       try {
-        globalThis.conchSSHReady = () => resolve(globalThis.conchSSH!);
+        globalThis.tubeSSHReady = () => resolve(globalThis.tubeSSH!);
         const go = new globalThis.Go();
         const { instance } = await WebAssembly.instantiateStreaming(fetch("/ssh.wasm"), go.importObject);
         void go.run(instance);
