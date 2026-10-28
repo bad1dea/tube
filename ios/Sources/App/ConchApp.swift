@@ -89,6 +89,7 @@ struct RootView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var trust: HostKeyTrust
     @EnvironmentObject var sessions: SessionManager
+    @EnvironmentObject var sync: SyncController
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {

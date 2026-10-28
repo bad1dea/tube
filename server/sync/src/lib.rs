@@ -28,6 +28,8 @@ pub const INVITE_TTL_SECS: i64 = 600;
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<Mutex<Connection>>,
+    /// Browser origins allowed to call the API (the web client). Empty = none.
+    pub cors_origins: Vec<String>,
     pub registration_token: Option<String>,
     pub trust_proxy: bool,
     pub limiter: Arc<Limiter>,
@@ -37,6 +39,7 @@ impl AppState {
     pub fn new(conn: Connection, registration_token: Option<String>, trust_proxy: bool) -> Self {
         AppState {
             db: Arc::new(Mutex::new(conn)),
+            cors_origins: vec![],
             registration_token,
             trust_proxy,
             limiter: Arc::new(Limiter::new(10, Duration::from_secs(60))),
@@ -45,6 +48,21 @@ impl AppState {
 }
 
 pub fn router(state: AppState) -> Router {
+    use axum::http::{header, HeaderValue, Method};
+    use tower_http::cors::{AllowOrigin, CorsLayer};
+    let origins: Vec<HeaderValue> = state
+        .cors_origins
+        .iter()
+        .filter_map(|o| o.parse().ok())
+        .collect();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::HeaderName::from_static("x-conch-registration"),
+        ]);
     Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route("/v1/vaults", post(create_vault))
@@ -57,6 +75,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/pairing/{id}/claim", post(claim_invite))
         .route("/v1/recover", post(recover))
         .layer(DefaultBodyLimit::max(MAX_BATCH * MAX_RECORD_BYTES / 8))
+        .layer(cors)
         .with_state(state)
 }
 

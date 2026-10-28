@@ -27,7 +27,14 @@ async fn main() {
     }
 
     let conn = db::open(&path).expect("open database");
-    let app = router(AppState::new(conn, registration, trust_proxy));
+    let mut state = AppState::new(conn, registration, trust_proxy);
+    state.cors_origins = std::env::var("CONCH_SYNC_ORIGINS")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let app = router(state);
     let listener = tokio::net::TcpListener::bind(listen).await.expect("bind");
     tracing::info!("listening on {listen}, database {path}");
     axum::serve(

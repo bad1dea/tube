@@ -18,3 +18,5 @@ target/
 *.db
 .env
 server/target/
+web/public/ssh.wasm
+web/public/wasm_exec.js
