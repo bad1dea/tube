@@ -1,5 +1,5 @@
-use tube_sync::{db, router, AppState};
 use std::net::SocketAddr;
+use tube_sync::{db, router, AppState};
 
 #[tokio::main]
 async fn main() {

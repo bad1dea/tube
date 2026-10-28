@@ -1,5 +1,5 @@
-use tube_gateway::{new_token, router, token_hash, AllowRule, Config, Gateway};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use tube_gateway::{new_token, router, token_hash, AllowRule, Config, Gateway};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

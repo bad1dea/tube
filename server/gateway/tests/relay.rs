@@ -1,8 +1,8 @@
-use tube_gateway::{authorize, router, token_hash, AllowRule, Config, Gateway};
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, net::IpAddr, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
+use tube_gateway::{authorize, router, token_hash, AllowRule, Config, Gateway};
 
 fn ip(s: &str) -> IpAddr {
     s.parse().unwrap()
