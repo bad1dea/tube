@@ -152,11 +152,11 @@ export function TerminalTab({ tab, active, relayURL, relayToken, themeName, font
         <button onClick={() => press("esc")}>esc</button>
         <button onClick={() => press("tab")}>tab</button>
         <button className={ctrlArmed ? "on" : ""} onClick={() => { setCtrlArmed(!ctrlArmed); term.current?.focus(); }}>ctrl</button>
-        <button onClick={() => { session.current?.write("\x03"); term.current?.focus(); }}>^C</button>
-        <button onClick={() => press("left")}>←</button>
-        <button onClick={() => press("down")}>↓</button>
-        <button onClick={() => press("up")}>↑</button>
-        <button onClick={() => press("right")}>→</button>
+        <button aria-label="Control C" onClick={() => { session.current?.write("\x03"); term.current?.focus(); }}>^C</button>
+        <button aria-label="Left" onClick={() => press("left")}>←</button>
+        <button aria-label="Down" onClick={() => press("down")}>↓</button>
+        <button aria-label="Up" onClick={() => press("up")}>↑</button>
+        <button aria-label="Right" onClick={() => press("right")}>→</button>
         <button onClick={() => { session.current?.write("|"); term.current?.focus(); }}>|</button>
         <button onClick={() => { session.current?.write("/"); term.current?.focus(); }}>/</button>
         <button onClick={() => { session.current?.write("~"); term.current?.focus(); }}>~</button>

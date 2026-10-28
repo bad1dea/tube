@@ -62,6 +62,22 @@ change under `ios/` before claiming the app compiles.
 - Security-sensitive server changes need a test in `server/sync/tests/api.rs`.
 - Commit identity: `khuong <khuong@khuo.ng>`.
 
+## UI work
+
+The project style rules (`~/.claude/CLAUDE.md`) come first: dense, native,
+technical. Design skills installed in every Claude/Codex config back them up:
+
+- Web: after changing `web/`, run
+  `node ~/.claude-work/skills/hallmark/scripts/sloplint.mjs web/src web/index.html --scope app`
+  and fix every FAIL except these waivers: 20 (Hallmark stamp), 63 on the
+  arrow key caps in Terminal.tsx (they are keys, labelled via aria-label), and
+  24b spacing REFLEX (the UI is intentionally denser than a 4px scale). Disabled
+  button contrast (WARN 40) is exempt under WCAG 1.4.3.
+- Review any new screen against the `anti-ai-slop` skill's severity table.
+- iOS: `python3 ~/.claude-work/skills/ui-ux-pro-max/scripts/search.py "<query>" --stack swiftui`
+  for SwiftUI guidance. Do not use `hallmark` here; it is for new web pages.
+- Not used: anti-ai-ui-framework (hostile-UX library, conflicts with accessibility).
+
 ## Signing / TestFlight
 
 Same scheme as `~/ios` (PrivateGallery) on amy: GitHub Actions `macos-26`,
