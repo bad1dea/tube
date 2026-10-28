@@ -13,7 +13,7 @@ on:
 
 jobs:
   distribute:
-    runs-on: macos-26
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: ios

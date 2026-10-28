@@ -25,6 +25,34 @@ def asc_login
   )
 end
 
+# A new app has no TestFlight groups. Create "Internal" and give it the same
+# testers as PrivateGallery's internal group (internal testers must already
+# be App Store Connect users, which those are).
+TESTER_SOURCE_BUNDLE_ID = "pro.imnot.privategallery".freeze
+
+def ensure_internal_group(app)
+  group = (app.get_beta_groups rescue []).find { |g| g.is_internal_group }
+  unless group
+    group = app.create_beta_group(group_name: "Internal", is_internal_group: true)
+    UI.success("created internal beta group '#{group.name}'")
+  end
+
+  have = Spaceship::ConnectAPI.get_beta_testers(filter: { betaGroups: group.id }).all_pages.flat_map(&:to_models).map(&:id)
+  if have.empty?
+    source = Spaceship::ConnectAPI::App.find(TESTER_SOURCE_BUNDLE_ID)
+    source_group = source && (source.get_beta_groups rescue []).find { |g| g.is_internal_group }
+    if source_group
+      ids = Spaceship::ConnectAPI.get_beta_testers(filter: { betaGroups: source_group.id }).all_pages.flat_map(&:to_models).map(&:id)
+      unless ids.empty?
+        group.add_beta_testers(beta_tester_ids: ids)
+        UI.success("added #{ids.count} tester(s) from #{TESTER_SOURCE_BUNDLE_ID} to '#{group.name}'")
+      end
+    end
+  end
+  UI.message("internal group '#{group.name}' has #{[have.count, 0].max} tester(s) before this run")
+  group
+end
+
 # Add a processed build to the internal beta group — the step that flips a build
 # from READY_FOR_BETA_TESTING → IN_BETA_TESTING and notifies internal testers.
 # `build_number` nil/"" = latest VALID build. Retries because the ConnectAPI list
@@ -32,8 +60,7 @@ end
 def add_build_to_internal_group(build_number: nil, attempts: 8, wait: 20)
   want = build_number.to_s.strip
   app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
-  group = (app.get_beta_groups rescue []).find { |g| g.is_internal_group }
-  UI.user_error!("No internal beta group found for #{APP_BUNDLE_ID}") unless group
+  group = ensure_internal_group(app)
 
   build = nil
   attempts.times do |i|
@@ -97,6 +124,7 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
     if app
       UI.success("App Store Connect app record exists: #{app.name} (#{app.id})")
+      ensure_internal_group(app)
     else
       UI.important("No App Store Connect app record for #{APP_BUNDLE_ID} yet; create it in the web UI.")
     end
