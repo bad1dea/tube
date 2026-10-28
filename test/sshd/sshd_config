@@ -8,3 +8,6 @@ AllowTcpForwarding yes
 GatewayPorts clientspecified
 Subsystem sftp internal-sftp
 LogLevel VERBOSE
+# Tests open many short connections that never authenticate (banner reads
+# through forwards); OpenSSH 9.8+ would start stalling them.
+PerSourcePenalties no

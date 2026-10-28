@@ -48,10 +48,13 @@ impl AllowRule {
     pub fn parse(s: &str) -> Result<Self, String> {
         let s = s.trim();
         let (host, port) = if let Some(rest) = s.strip_prefix('[') {
-            let (h, p) = rest.split_once("]:").ok_or_else(|| format!("bad rule {s}"))?;
+            let (h, p) = rest
+                .split_once("]:")
+                .ok_or_else(|| format!("bad rule {s}"))?;
             (h, p)
         } else {
-            s.rsplit_once(':').ok_or_else(|| format!("rule needs :port or :* ({s})"))?
+            s.rsplit_once(':')
+                .ok_or_else(|| format!("rule needs :port or :* ({s})"))?
         };
         let port = if port == "*" {
             None
@@ -131,7 +134,12 @@ fn sensitive(ip: IpAddr) -> bool {
 /// Name rules match the requested name; the resolved address must still not be
 /// sensitive. CIDR rules match resolved addresses, so a name that resolves into
 /// an allowed network works and DNS cannot point an allowed name at loopback.
-pub fn authorize(rules: &[AllowRule], host: &str, port: u16, resolved: &[IpAddr]) -> Result<Vec<IpAddr>, &'static str> {
+pub fn authorize(
+    rules: &[AllowRule],
+    host: &str,
+    port: u16,
+    resolved: &[IpAddr],
+) -> Result<Vec<IpAddr>, &'static str> {
     let name = host.trim_end_matches('.').to_ascii_lowercase();
     let name_allowed = rules.iter().any(|r| {
         r.port_ok(port)
@@ -147,9 +155,9 @@ pub fn authorize(rules: &[AllowRule], host: &str, port: u16, resolved: &[IpAddr]
         .iter()
         .copied()
         .filter(|ip| {
-            let by_net = rules.iter().any(|r| {
-                r.port_ok(port) && matches!(&r.host, HostRule::Net(n) if n.contains(ip))
-            });
+            let by_net = rules
+                .iter()
+                .any(|r| r.port_ok(port) && matches!(&r.host, HostRule::Net(n) if n.contains(ip)));
             by_net || (name_allowed && !sensitive(*ip))
         })
         .collect();
@@ -199,9 +207,7 @@ async fn relay(
             return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
         }
     }
-    let ip = addr
-        .map(|a| a.ip())
-        .unwrap_or(IpAddr::from([127, 0, 0, 1]));
+    let ip = addr.map(|a| a.ip()).unwrap_or(IpAddr::from([127, 0, 0, 1]));
     {
         let mut attempts = gw.attempts.lock().unwrap();
         let now = Instant::now();
@@ -249,10 +255,11 @@ async fn handle(gw: Gateway, mut socket: WebSocket, client: IpAddr) {
         return reply_error(socket, "invalid token").await;
     };
 
-    let resolved: Vec<IpAddr> = match tokio::net::lookup_host((hello.host.as_str(), hello.port)).await {
-        Ok(addrs) => addrs.map(|a| a.ip()).collect(),
-        Err(_) => return reply_error(socket, "cannot resolve host").await,
-    };
+    let resolved: Vec<IpAddr> =
+        match tokio::net::lookup_host((hello.host.as_str(), hello.port)).await {
+            Ok(addrs) => addrs.map(|a| a.ip()).collect(),
+            Err(_) => return reply_error(socket, "cannot resolve host").await,
+        };
     let targets = match authorize(&gw.config.allow, &hello.host, hello.port, &resolved) {
         Ok(t) => t,
         Err(e) => {

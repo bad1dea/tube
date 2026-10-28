@@ -87,7 +87,18 @@ async fn echo_server() -> u16 {
     port
 }
 
-async fn hello(url: &str, token: &str, port: u16) -> (String, Option<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>) {
+async fn hello(
+    url: &str,
+    token: &str,
+    port: u16,
+) -> (
+    String,
+    Option<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    >,
+) {
     let (mut ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
     ws.send(Message::Text(
         format!(r#"{{"token":"{token}","host":"127.0.0.1","port":{port}}}"#).into(),
@@ -107,7 +118,9 @@ async fn relays_bytes_both_ways() {
     let (reply, ws) = hello(&url, "good-token", port).await;
     assert_eq!(reply, r#"{"ok":true}"#);
     let mut ws = ws.unwrap();
-    ws.send(Message::Binary(b"SSH-2.0-test\r\n".to_vec().into())).await.unwrap();
+    ws.send(Message::Binary(b"SSH-2.0-test\r\n".to_vec().into()))
+        .await
+        .unwrap();
     match ws.next().await {
         Some(Ok(Message::Binary(b))) => assert_eq!(&b[..], b"SSH-2.0-test\r\n"),
         other => panic!("{other:?}"),
@@ -145,11 +158,17 @@ async fn session_limit_per_user() {
 #[tokio::test]
 async fn origin_is_checked() {
     let port = echo_server().await;
-    let url = start(&[&format!("127.0.0.1:{port}")], vec!["https://conch.example".into()]).await;
+    let url = start(
+        &[&format!("127.0.0.1:{port}")],
+        vec!["https://conch.example".into()],
+    )
+    .await;
     let mut req = url.clone().into_client_request().unwrap();
-    req.headers_mut().insert("origin", "https://evil.example".parse().unwrap());
+    req.headers_mut()
+        .insert("origin", "https://evil.example".parse().unwrap());
     assert!(tokio_tungstenite::connect_async(req).await.is_err());
     let mut req = url.into_client_request().unwrap();
-    req.headers_mut().insert("origin", "https://conch.example".parse().unwrap());
+    req.headers_mut()
+        .insert("origin", "https://conch.example".parse().unwrap());
     assert!(tokio_tungstenite::connect_async(req).await.is_ok());
 }
