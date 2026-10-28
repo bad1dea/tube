@@ -179,7 +179,9 @@ platform :ios do
       export_method: "app-store",
       # Manual signing — use the cert already imported into the keychain + the
       # installed profile. No -allowProvisioningUpdates, so nothing is minted.
-      xcargs: "CODE_SIGN_STYLE=Manual " \
+      # SwiftTerm ships a build-tool plugin; CI cannot click "Trust       xcargs: "CODE_SIGN_STYLE=Manual " \ Enable".
+      xcargs: "-skipPackagePluginValidation -skipMacroValidation " \
+              "CODE_SIGN_STYLE=Manual " \
               "CODE_SIGN_IDENTITY='Apple Distribution' " \
               "DEVELOPMENT_TEAM=#{team} " \
               "PROVISIONING_PROFILE_SPECIFIER='#{profile}'",
