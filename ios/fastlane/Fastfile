@@ -101,6 +101,11 @@ def add_build_to_internal_group(build_number: nil, attempts: 8, wait: 20)
   end
   UI.user_error!("Build #{want.empty? ? '(latest)' : want} never became VALID in time") unless build
 
+  if group.has_access_to_all_builds
+    # Apple refuses explicit assignment to such a group; the build is already in it.
+    UI.success("Build #{build.version} is available to '#{group.name}' (group gets all builds).")
+    return
+  end
   UI.message("Adding build #{build.version} to internal group '#{group.name}'…")
   build.add_beta_groups(beta_groups: [group])
   UI.success("Build #{build.version} distributed to '#{group.name}' — testers notified.")
