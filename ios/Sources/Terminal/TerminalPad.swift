@@ -107,7 +107,7 @@ final class TerminalPad: UIView {
 
     private func touched() {
         idleTimer?.invalidate()
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in self?.close() }
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in self?.close() }
     }
 
     func close() {

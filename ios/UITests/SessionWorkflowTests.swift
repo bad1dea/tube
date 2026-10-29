@@ -229,7 +229,9 @@ final class SessionWorkflowTests: XCTestCase {
         el("terminal").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).press(forDuration: 1.0)
         XCTAssertTrue(el("terminalPad").waitForExistence(timeout: 3), "pad did not appear")
         shot("w09-pad")
-        tap("Close pad")
+        // The pad closes itself after 10 s idle; slow CI screenshots can get close to that.
+        if el("Close pad").exists { el("Close pad").tap() }
+        XCTAssertFalse(el("terminalPad").waitForExistence(timeout: 1), "pad did not close")
 
         // Password key asks before typing.
         tap("Type saved password")
