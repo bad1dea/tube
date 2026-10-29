@@ -105,5 +105,15 @@ final class TubeUITests: XCTestCase {
         element("Hosts").tap()
         sleep(1)
         shot("10-hosts-with-session")
+
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<4 where !app.buttons["Settings"].isHittable { list.swipeUp() }
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        shot("11-settings")
+        for _ in 0..<4 where !app.buttons["About Tube"].isHittable { app.collectionViews.firstMatch.swipeUp() }
+        app.buttons["About Tube"].tap()
+        XCTAssertTrue(app.staticTexts["Tube SSH"].waitForExistence(timeout: 5), "About screen did not open")
+        shot("12-about")
     }
 }

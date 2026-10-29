@@ -108,6 +108,15 @@ final class TubeTerminalView: TerminalView {
         }
     }
 
+    // SwiftTerm adds its own mouse-drag pan when an app turns on mouse reporting.
+    // Left alone it wins over the swipe and sends a click instead of wheel events.
+    override func mouseModeChanged(source: Terminal) {
+        super.mouseModeChanged(source: source)
+        for g in gestureRecognizers ?? [] where g is UIPanGestureRecognizer && g !== swipe {
+            g.require(toFail: swipe)
+        }
+    }
+
     // UIView asks this for every recognizer on the view, including the swipe.
     override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
         guard g === swipe else { return super.gestureRecognizerShouldBegin(g) }
