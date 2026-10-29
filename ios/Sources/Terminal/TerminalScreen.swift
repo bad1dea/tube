@@ -156,7 +156,10 @@ struct PasswordPrompt: View {
             store.upsert(h, password: password)
         }
         session.connect(password: password, for: hostID)
-        _ = session.view.becomeFirstResponder()
+        // Hand the keyboard over only after SwiftUI lets go of the field;
+        // grabbing it while the field is still focused can leave nothing focused.
+        focused = false
+        DispatchQueue.main.async { _ = session.view.becomeFirstResponder() }
     }
 }
 
