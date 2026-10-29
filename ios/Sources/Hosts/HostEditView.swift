@@ -114,7 +114,7 @@ struct HostEditView: View {
                     Picker("Font", selection: terminalBinding.fontName) {
                         ForEach(TerminalFonts.names, id: \.self) { Text($0).tag($0) }
                     }
-                    Stepper("Size \(Int(terminalBinding.wrappedValue.fontSize))", value: terminalBinding.fontSize, in: 8...32)
+                    Stepper("Font Size \(Int(terminalBinding.wrappedValue.fontSize))", value: terminalBinding.fontSize, in: 8...32)
                     Toggle("Backspace Sends ^H", isOn: terminalBinding.backspaceSendsControlH)
                 }
             }
@@ -145,7 +145,7 @@ struct HostEditView: View {
                 }
                 .overlay {
                     if store.data.hosts.count < 2 {
-                        ContentUnavailableView("No other hosts", systemImage: "server.rack",
+                        ContentUnavailableView("No Other Hosts", systemImage: "server.rack",
                                                description: Text("Add the jump host as a normal host first, then pick it here."))
                     }
                 }
@@ -174,7 +174,10 @@ struct HostEditView: View {
         host.hostname = host.hostname.trimmingCharacters(in: .whitespaces)
         host.tags = tagText.split(separator: " ").map(String.init)
         if !overrideTerminal { host.terminal = nil }
-        store.upsert(host, password: passwordChanged ? password : nil)
+        // Typing in the field and clearing it again keeps the saved password;
+        // only Remove Saved Password deletes it.
+        let keepSaved = password.isEmpty && host.hasPassword
+        store.upsert(host, password: passwordChanged && !keepSaved ? password : nil)
         let saved = store.host(host.id) ?? host
         dismiss()
         onSave?(saved)

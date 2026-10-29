@@ -74,24 +74,31 @@ struct TubeApp: App {
                 .environmentObject(sync)
                 .environmentObject(tunnels)
                 .environmentObject(keeper)
-                .overlay {
-                    if lock.locked { LockScreen(lock: lock) }
-                }
                 .onAppear { lock.lockIfEnabled(store.data.settings.lockWithBiometrics) }
                 .onOpenURL { url in
                     // tube://sessions from the Live Activity.
                     if url.host == "sessions", !sessions.sessions.isEmpty { sessions.terminalPresented = true }
+                    // tube://pair?... from a pairing QR code scanned with the Camera app.
+                    if url.host == "pair" { sync.openPairing(url.absoluteString) }
+                }
+                .sheet(isPresented: Binding(get: { sync.pairingCode != nil }, set: { if !$0 { sync.pairingCode = nil } })) {
+                    NavigationStack { SyncSetupView(mode: .join, code: sync.pairingCode ?? "") }
+                        .environmentObject(sync)
                 }
                 .onChange(of: store.data.hosts) { sync.scheduleSync() }
                 .onChange(of: store.data.snippets) { sync.scheduleSync() }
                 .onChange(of: store.data.identities) { sync.scheduleSync() }
                 .onChange(of: store.data.groups) { sync.scheduleSync() }
+                .onChange(of: store.data.forwards) { sync.scheduleSync() }
                 .onChange(of: store.data.knownHosts) {
                     trust.reload()
                     sync.scheduleSync()
                 }
                 .onChange(of: scenePhase) { _, phase in
+                    // Cover on inactive too, so the app switcher snapshot shows nothing.
+                    lock.covered = phase != .active && store.data.settings.lockWithBiometrics
                     if phase == .active {
+                        if lock.locked { lock.unlock() }
                         keeper.becameActive()
                         Task { await sync.syncNow() }
                         tunnels.markDropped()
@@ -113,16 +120,45 @@ struct TubeApp: App {
 /// details; Keychain items themselves are protected by the device passcode.
 @MainActor
 final class AppLock: ObservableObject {
-    @Published var locked = false
+    @Published var locked = false { didSet { updateWindow() } }
+    @Published var covered = false { didSet { updateWindow() } }
+    private var evaluating = false
+    // Its own window above everything: an overlay on the root view sits under
+    // the terminal's full-screen cover and every sheet.
+    private var window: UIWindow?
 
     func lockIfEnabled(_ enabled: Bool) {
         if enabled { locked = true }
     }
 
     func unlock() {
+        // The Face ID sheet makes the scene inactive and active again; don't ask twice.
+        guard locked, !evaluating else { return }
+        evaluating = true
         let ctx = LAContext()
         ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock Tube") { ok, _ in
-            Task { @MainActor in if ok { self.locked = false } }
+            Task { @MainActor in
+                self.evaluating = false
+                if ok { self.locked = false }
+            }
+        }
+    }
+
+    private func updateWindow() {
+        if locked || covered {
+            guard window == nil,
+                  let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
+            else { return }
+            let w = UIWindow(windowScene: scene)
+            w.windowLevel = .alert + 1
+            w.rootViewController = UIHostingController(rootView: LockScreen(lock: self))
+            // Key, so a hardware keyboard can't type into the terminal underneath.
+            w.makeKeyAndVisible()
+            window = w
+        } else if let w = window {
+            w.isHidden = true
+            window = nil
+            w.windowScene?.windows.first { $0.windowLevel == .normal }?.makeKey()
         }
     }
 }
@@ -135,10 +171,12 @@ struct LockScreen: View {
             Color(uiColor: .systemBackground).ignoresSafeArea()
             VStack(spacing: 16) {
                 Image(systemName: "lock").font(.largeTitle)
-                Button("Unlock") { lock.unlock() }.buttonStyle(.borderedProminent)
+                if lock.locked {
+                    Button("Unlock") { lock.unlock() }.buttonStyle(.borderedProminent)
+                }
             }
         }
-        .onAppear { lock.unlock() }
+        .onAppear { if UIApplication.shared.applicationState == .active { lock.unlock() } }
     }
 }
 
@@ -148,15 +186,18 @@ struct RootView: View {
     @EnvironmentObject var sessions: SessionManager
     @EnvironmentObject var sync: SyncController
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         Group {
             if sizeClass == .regular {
-                NavigationSplitView {
+                // terminalPresented means "terminal in front" here too: the
+                // strip's back button shows the host list, opening a host hides it.
+                NavigationSplitView(columnVisibility: $columns) {
                     HostListView()
                 } detail: {
                     if sessions.sessions.isEmpty {
-                        ContentUnavailableView("No sessions", systemImage: "terminal",
+                        ContentUnavailableView("No Sessions", systemImage: "terminal",
                                                description: Text("Pick a host to connect."))
                     } else {
                         TerminalScreen()
@@ -173,6 +214,12 @@ struct RootView: View {
                             .sheet(item: hostKeyQuestion(shownHere: true)) { q in hostKeySheet(q) }
                     }
             }
+        }
+        .onChange(of: sessions.terminalPresented) { _, shown in
+            if sizeClass == .regular { columns = shown && !sessions.sessions.isEmpty ? .detailOnly : .all }
+        }
+        .onChange(of: sessions.activeID) {
+            if sizeClass == .regular, sessions.terminalPresented, sessions.activeID != nil { columns = .detailOnly }
         }
         // A sheet cannot present from under the terminal's full-screen cover,
         // so while the cover is up (iPhone) the cover presents the question.
@@ -217,6 +264,12 @@ struct HostKeyPrompt: View {
     let question: HostKeyQuestion
     let answer: (Bool) -> Void
 
+    private var hostKeyFile: String {
+        let a = question.algorithm
+        let type = a.contains("ed25519") ? "ed25519" : a.contains("ecdsa") ? "ecdsa" : "rsa"
+        return "/etc/ssh/ssh_host_\(type)_key.pub"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -228,7 +281,7 @@ struct HostKeyPrompt: View {
                         Text(question.fingerprint).font(.callout.monospaced()).textSelection(.enabled)
                     }
                 } footer: {
-                    Text("You haven’t connected to this server before. If you can, check that the fingerprint matches the one the server shows for `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`, then tap Trust.")
+                    Text("You haven’t connected to this server before. If you can, check that the fingerprint matches the one the server shows for `ssh-keygen -lf \(hostKeyFile)`, then tap Trust.")
                 }
             }
             .navigationTitle("Trust This Server?")

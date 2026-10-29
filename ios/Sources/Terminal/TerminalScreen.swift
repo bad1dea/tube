@@ -7,10 +7,15 @@ struct TerminalScreen: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
     @EnvironmentObject var trust: HostKeyTrust
+    @State private var pickedHost: Host?
+
+    private var activeTerminal: TerminalSettings {
+        sessions.active.flatMap { store.host($0.hostID)?.terminal } ?? store.data.settings.terminal
+    }
 
     var body: some View {
         ZStack {
-            Color(TerminalTheme.named(store.data.settings.terminal.themeName).background.uiColor)
+            Color(TerminalTheme.named(activeTerminal.themeName).background.uiColor)
                 .ignoresSafeArea()
             TerminalHost(store: store, sessions: sessions)
                 // The controller does its own keyboard avoidance (see keyboardChanged).
@@ -20,7 +25,8 @@ struct TerminalScreen: View {
                 SessionStatusOverlay(session: s)
             }
         }
-        .sheet(item: $sessions.pendingSnippet) { snippet in
+        // Page sheets don't trigger viewDidAppear, so give the keyboard back here.
+        .sheet(item: $sessions.pendingSnippet, onDismiss: { _ = sessions.active?.view.becomeFirstResponder() }) { snippet in
             SnippetVariablesSheet(snippet: snippet) { values in
                 sessions.run(snippet: snippet, values: values)
             }
@@ -40,15 +46,18 @@ struct TerminalScreen: View {
                                             : .destructive(Text("Type Anyway")) { sessions.confirmTypePassword(req) },
                 secondaryButton: .cancel { _ = sessions.active?.view.becomeFirstResponder() })
         }
-        .sheet(isPresented: $sessions.filesPresented) {
+        .sheet(isPresented: $sessions.filesPresented, onDismiss: { _ = sessions.active?.view.becomeFirstResponder() }) {
             if let s = sessions.active, let host = store.host(s.hostID) {
                 FilesView(host: host, existing: s.sshConnection)
                     .environmentObject(store)
                     .environmentObject(trust)
             }
         }
-        .sheet(isPresented: $sessions.hostPickerPresented) {
-            HostPicker { host in sessions.open(host) }
+        .sheet(isPresented: $sessions.hostPickerPresented, onDismiss: {
+            if let h = pickedHost { pickedHost = nil; sessions.open(h) }
+            _ = sessions.active?.view.becomeFirstResponder()
+        }) {
+            HostPicker { host in pickedHost = host }
                 .environmentObject(store)
         }
     }
@@ -90,10 +99,14 @@ struct SessionStatusOverlay: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Disconnected").font(.headline)
                     if let reason {
-                        Text(reason).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        Text(reason).font(.callout).foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
                     HStack {
+                        if session.changedKey != nil {
+                            Button("Forget Old Key") { session.forgetChangedKeyAndReconnect() }
+                                .buttonStyle(.bordered)
+                        }
                         Button("Reconnect") { session.connect() }
                             .buttonStyle(.borderedProminent)
                         Button("Close", role: .destructive) { sessions.close(session.id) }
@@ -471,23 +484,38 @@ struct ThemePicker: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
 
+    /// The active host's own settings when it has them, else the global ones.
+    private var terminal: Binding<TerminalSettings> {
+        let i = sessions.active.flatMap { s in store.data.hosts.firstIndex { $0.id == s.hostID && $0.terminal != nil } }
+        return Binding(
+            get: { i.flatMap { store.data.hosts[$0].terminal } ?? store.data.settings.terminal },
+            set: { v in
+                if let i {
+                    store.data.hosts[i].terminal = v
+                    sessions.applySettings()
+                } else {
+                    store.data.settings.terminal = v
+                }
+            })
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Font").font(.caption).foregroundStyle(.secondary)
-                    Picker("Font", selection: $store.data.settings.terminal.fontName) {
+                    Picker("Font", selection: terminal.fontName) {
                         ForEach(TerminalFonts.names, id: \.self) { Text($0).tag($0) }
                     }
                     Spacer()
-                    Stepper("\(Int(store.data.settings.terminal.fontSize)) pt",
-                            value: $store.data.settings.terminal.fontSize, in: 8...32, step: 1)
+                    Stepper("Font Size \(Int(terminal.wrappedValue.fontSize))",
+                            value: terminal.fontSize, in: 8...32, step: 1)
                         .fixedSize()
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
                     ForEach(TerminalTheme.all) { theme in
-                        Button { store.data.settings.terminal.themeName = theme.name } label: {
-                            ThemeSwatch(theme: theme, selected: theme.name == store.data.settings.terminal.themeName)
+                        Button { terminal.wrappedValue.themeName = theme.name } label: {
+                            ThemeSwatch(theme: theme, selected: theme.name == terminal.wrappedValue.themeName)
                         }
                         .buttonStyle(.plain)
                     }
@@ -537,10 +565,13 @@ struct SnippetVariablesSheet: View {
             Form {
                 Section {
                     ForEach(snippet.variables, id: \.self) { name in
-                        TextField(name, text: Binding(get: { values[name] ?? "" }, set: { values[name] = $0 }))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(.body.monospaced())
+                        LabeledContent(name) {
+                            TextField(name, text: Binding(get: { values[name] ?? "" }, set: { values[name] = $0 }))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(.body.monospaced())
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                 }
                 Section("Command") {
@@ -553,6 +584,7 @@ struct SnippetVariablesSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Run") { run(values); dismiss() }
+                        .disabled(snippet.variables.contains { (values[$0] ?? "").isEmpty })
                 }
             }
         }

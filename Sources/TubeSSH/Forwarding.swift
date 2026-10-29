@@ -133,7 +133,8 @@ public final class PortForwardHandle: @unchecked Sendable {
     public let boundPort: Int
     let listener: Channel?
     let task: Task<Void, Error>?
-    weak var connection: SSHConnection?
+    // Strong, so isAlive still sees a dead connection after its owner lets go.
+    let connection: SSHConnection?
 
     init(boundPort: Int, listener: Channel?, task: Task<Void, Error>? = nil, connection: SSHConnection? = nil) {
         self.boundPort = boundPort
@@ -148,8 +149,9 @@ public final class PortForwardHandle: @unchecked Sendable {
     }
 
     public var isAlive: Bool {
-        if let listener { return listener.isActive && connection?.isConnected != false }
-        return task.map { !$0.isCancelled } ?? false && connection?.isConnected != false
+        guard connection?.isConnected ?? true else { return false }
+        if let listener { return listener.isActive }
+        return task.map { !$0.isCancelled } ?? false
     }
 }
 

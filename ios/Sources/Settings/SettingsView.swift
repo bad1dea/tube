@@ -45,7 +45,8 @@ struct SettingsView: View {
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Tube locks when you leave it. Passwords and keys are kept in this device’s Keychain and never leave it unless you turn on sync for a key.")
+                Text((store.data.settings.lockWithBiometrics ? "Tube asks for Face ID or your passcode when you come back to it. " : "")
+                     + "Passwords and keys are kept in this device’s Keychain. With sync on, saved passwords, and keys you choose to sync, go to your other devices encrypted.")
             }
             Section {
                 NavigationLink("About Tube") { AboutView() }
@@ -126,7 +127,7 @@ struct SSHConfigView: View {
                 Text("Brings in Host, HostName, User, Port and ProxyJump. Keys named by IdentityFile need to be imported in SSH Keys.")
             }
             if !parsed.isEmpty {
-                Section("\(parsed.count) Hosts") {
+                Section(parsed.count == 1 ? "1 Host" : "\(parsed.count) Hosts") {
                     ForEach(parsed, id: \.alias) { e in
                         VStack(alignment: .leading) {
                             Text(e.alias)
@@ -134,10 +135,10 @@ struct SSHConfigView: View {
                                 .font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
                     }
-                    Button("Import \(parsed.count) Hosts") {
+                    Button(parsed.count == 1 ? "Import 1 Host" : "Import \(parsed.count) Hosts") {
                         let hosts = SSHConfig.importHosts(parsed, defaultUser: "root")
                         for h in hosts { store.upsert(h, password: nil) }
-                        result = "Imported \(hosts.count) hosts"
+                        result = hosts.count == 1 ? "Imported 1 host" : "Imported \(hosts.count) hosts"
                         text = ""
                     }
                 }

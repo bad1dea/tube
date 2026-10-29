@@ -90,6 +90,9 @@ public enum VaultClient {
 
     /// Returns a `tube://pair` URL to show as QR/text on the existing device.
     public static func invite(_ creds: VaultCredentials) async throws -> String {
+        // The payload must carry the vault's current key, which may have
+        // rotated since this device last synced.
+        let creds = try await refreshKey(creds)
         let inviteID = Base32.encode(randomBytes(16))
         let secret = randomBytes(32)
         guard let vk = creds.keys[creds.epoch] else { throw VaultCryptoError.badCiphertext }
@@ -134,7 +137,7 @@ public enum VaultClient {
     @MainActor
     public static func rotate(_ creds: VaultCredentials, store: SyncStore) async throws -> VaultCredentials {
         // Bring local state up to date first so nothing is re-encrypted from stale data.
-        try await sync(creds, store: store)
+        let creds = try await sync(creds, store: store).creds
         let newKey = VaultKey.generate()
         let newEpoch = creds.epoch + 1
         let wrapped = try VaultCrypto.seal(newKey.bytes, key: SymmetricKey(data: creds.kek),
@@ -147,19 +150,39 @@ public enum VaultClient {
             r.dirty = true
             store.applyRemote(r)
         }
-        try await sync(next, store: store)
+        return try await sync(next, store: store).creds
+    }
+
+    /// Picks up a key another device rotated to (after a revoke). The new key
+    /// is wrapped with the KEK, which every enrolled device holds.
+    public static func refreshKey(_ creds: VaultCredentials) async throws -> VaultCredentials {
+        let info = try await creds.api.vault()
+        if info.key_epoch == creds.epoch, creds.keys[creds.epoch] != nil { return creds }
+        guard let wrapped = Data(base64Encoded: info.wrapped_key) else { throw VaultCryptoError.badCiphertext }
+        let vk = try VaultCrypto.open(wrapped, key: SymmetricKey(data: creds.kek), aad: Data("tube-vk-v1|\(creds.vaultID)".utf8))
+        var next = creds
+        next.epoch = info.key_epoch
+        next.keys[info.key_epoch] = vk
         return next
     }
 
     // MARK: Sync
 
-    /// Pull, merge, push. Newer `updatedAt` wins a conflict.
+    /// Pull, merge, push. Newer `updatedAt` wins a conflict. Returns the
+    /// credentials to keep: they change when another device rotated the key.
     @MainActor @discardableResult
-    public static func sync(_ creds: VaultCredentials, store: SyncStore) async throws -> (pulled: Int, pushed: Int) {
+    public static func sync(_ creds: VaultCredentials, store: SyncStore) async throws -> (pulled: Int, pushed: Int, creds: VaultCredentials) {
+        var creds = creds
         let api = creds.api
+        func ensureKeys(_ records: [SyncAPI.Record]) async throws {
+            if records.contains(where: { $0.ciphertext != nil && creds.keys[$0.epoch] == nil }) {
+                creds = try await refreshKey(creds)
+            }
+        }
         var pulled = 0
         while true {
             let page = try await api.pull(since: store.cursor)
+            try await ensureKeys(page.records)
             for remote in page.records {
                 try merge(remote, creds: creds, store: store)
                 pulled += 1
@@ -169,6 +192,7 @@ public enum VaultClient {
         }
 
         var pushed = 0
+        var refreshed = false
         for _ in 0..<3 {
             let dirty = store.dirtyRecords()
             if dirty.isEmpty { break }
@@ -186,7 +210,16 @@ public enum VaultClient {
                                    deleted: r.body == nil, ciphertext: ct))
             }
             for chunk in stride(from: 0, to: batch.count, by: 200).map({ Array(batch[$0..<min($0 + 200, batch.count)]) }) {
-                let resp = try await api.push(chunk)
+                let resp: SyncAPI.PushResponse
+                do {
+                    resp = try await api.push(chunk)
+                } catch let e as SyncError where e.status == 409 && e.message == "stale key epoch" && !refreshed {
+                    // Rotated elsewhere since our pull. Re-encrypt under the new key on the next pass.
+                    refreshed = true
+                    creds = try await refreshKey(creds)
+                    break
+                }
+                try await ensureKeys(resp.conflicts)
                 for a in resp.applied {
                     store.markSynced(id: a.id, version: a.version)
                     pushed += 1
@@ -196,7 +229,7 @@ public enum VaultClient {
                 }
             }
         }
-        return (pulled, pushed)
+        return (pulled, pushed, creds)
     }
 
     @MainActor

@@ -1,13 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import TubeCore
+import TubeSSH
 
 struct IdentitiesView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var sync: SyncController
     @Environment(\.dismiss) private var dismiss
     @State private var generating = false
     @State private var importing = false
     @State private var error: String?
+    @State private var deleting: Identity?
 
     var body: some View {
         List {
@@ -22,7 +25,7 @@ struct IdentitiesView: View {
                     }
                 }
             }
-            .onDelete { idx in idx.map { store.data.identities[$0].id }.forEach(store.delete(identity:)) }
+            .onDelete { idx in deleting = idx.first.map { store.data.identities[$0] } }
             if store.data.identities.isEmpty {
                 Text("Make a new key, or import one you already use.")
                     .foregroundStyle(.secondary)
@@ -39,6 +42,13 @@ struct IdentitiesView: View {
                 } label: { Image(systemName: "plus") }
                 .accessibilityLabel("Add Key")
             }
+        }
+        .confirmationDialog(deleting.map { deleteKeyQuestion($0, store: store, synced: sync.enabled) } ?? "",
+                            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            titleVisibility: .visible, presenting: deleting) { ident in
+            Button("Delete Key", role: .destructive) { store.delete(identity: ident.id) }
+        } message: { _ in
+            Text("Servers that have the public key keep it. Remove it from their authorized_keys if you no longer need it.")
         }
         .sheet(isPresented: $generating) { NavigationStack { GenerateKeyView() } }
         .sheet(isPresented: $importing) { NavigationStack { ImportKeyView() } }
@@ -136,7 +146,7 @@ struct ImportKeyView: View {
                                                   passphrase: passphrase.isEmpty ? nil : passphrase)
                         dismiss()
                     } catch {
-                        self.error = "Could not read key: \(error)"
+                        self.error = SSHErrorText.describe(error, target: "")
                     }
                 }
                 .disabled(keyText.isEmpty)
@@ -147,6 +157,7 @@ struct ImportKeyView: View {
 
 struct IdentityDetailView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var sync: SyncController
     @Environment(\.dismiss) private var dismiss
     let identity: Identity
     @State private var label = ""
@@ -211,10 +222,7 @@ struct IdentityDetailView: View {
                 }
             }
         }
-        .confirmationDialog(users.isEmpty
-                            ? "Delete this key from this device?"
-                            : "Delete this key? \(users.map(\.displayName).joined(separator: ", ")) will ask for a password instead.",
-                            isPresented: $deleting, titleVisibility: .visible) {
+        .confirmationDialog(deleteKeyQuestion(identity, store: store, synced: sync.enabled), isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete Key", role: .destructive) {
                 store.delete(identity: identity.id)
                 dismiss()
@@ -304,8 +312,17 @@ struct InstallKeyView: View {
                 dismiss()
             } catch {
                 working = false
-                self.error = "Couldn’t install the key on \(host.displayName): \(error)"
+                self.error = "Couldn’t install the key on \(host.displayName). " + SSHErrorText.describe(error, target: host.destination)
             }
         }
     }
+}
+
+@MainActor
+private func deleteKeyQuestion(_ ident: Identity, store: AppStore, synced: Bool) -> String {
+    let users = store.data.hosts.filter { $0.identityID == ident.id }.map(\.displayName)
+    let scope = synced ? "from all your synced devices" : "from this device"
+    return users.isEmpty
+        ? "Delete \(ident.label) \(scope)?"
+        : "Delete \(ident.label) \(scope)? \(users.joined(separator: ", ")) will ask for a password instead."
 }

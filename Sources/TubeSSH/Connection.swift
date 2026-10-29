@@ -31,6 +31,8 @@ public enum SSHConnectError: Error, Equatable, CustomStringConvertible {
     case hostKeyChanged(host: String, port: Int, expected: String, presented: String)
     case unsupportedKey(String)
     case badPassphrase
+    /// The key didn't parse without a passphrase; most likely it has one.
+    case needsPassphrase
     case authenticationFailed(host: String, port: Int, user: String)
 
     public var description: String {
@@ -40,6 +42,7 @@ public enum SSHConnectError: Error, Equatable, CustomStringConvertible {
             return "Host key for \(h):\(p) changed. Expected \(e), server presented \(pr)"
         case .unsupportedKey(let t): return "Unsupported private key: \(t)"
         case .badPassphrase: return "Wrong passphrase for private key"
+        case .needsPassphrase: return "Private key could not be read; it may need a passphrase"
         case .authenticationFailed(let h, let p, let u): return "\(u)@\(h):\(p) rejected the password or key"
         }
     }
@@ -137,7 +140,23 @@ public enum SSHKeys {
     /// Public key line for an imported private key.
     public static func publicKeyLine(privateKey text: String, passphrase: String?, comment: String = "") throws -> (KeyAlgorithm, String) {
         let decryption = passphrase.map { Data($0.utf8) }
-        let type = try SSHKeyDetection.detectPrivateKeyType(from: text)
+        let type: SSHKeyType
+        do {
+            type = try SSHKeyDetection.detectPrivateKeyType(from: text)
+        } catch {
+            throw SSHConnectError.unsupportedKey("not an OpenSSH private key")
+        }
+        do {
+            return try publicKeyLine(type: type, text: text, decryption: decryption, comment: comment)
+        } catch let e as SSHConnectError {
+            throw e
+        } catch {
+            // Citadel throws its own parse errors for a missing or wrong passphrase.
+            throw (passphrase ?? "").isEmpty ? SSHConnectError.needsPassphrase : SSHConnectError.badPassphrase
+        }
+    }
+
+    private static func publicKeyLine(type: SSHKeyType, text: String, decryption: Data?, comment: String) throws -> (KeyAlgorithm, String) {
         let pub: NIOSSHPublicKey
         let alg: KeyAlgorithm
         switch type {

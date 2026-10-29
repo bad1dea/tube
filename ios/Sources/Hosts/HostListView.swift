@@ -5,12 +5,15 @@ struct HostListView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
     @EnvironmentObject var sync: SyncController
+    @EnvironmentObject var tunnels: TunnelManager
     @State private var search = ""
     @State private var quick = ""
     @State private var editing: Host?
     @State private var connectAfterSave = false
     @State private var sheet: Sheet?
     @State private var filesHost: Host?
+    @State private var deletingHost: Host?
+    @State private var openAfterEdit: Host?
 
     enum Sheet: String, Identifiable {
         case identities, snippets, knownHosts, settings, importConfig, sync, tunnels
@@ -92,7 +95,7 @@ struct HostListView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 14) {
                             ForEach(recent) { h in
-                                Button { sessions.open(h) } label: {
+                                Button { sessions.resume(h) } label: {
                                     VStack(spacing: 6) {
                                         OSTile(osID: h.osID, size: 46)
                                             .overlay(alignment: .topTrailing) {
@@ -174,14 +177,29 @@ struct HostListView: View {
                 .keyboardShortcut("n", modifiers: .command)
             }
         }
+        .confirmationDialog(deletingHost.map { "Delete \($0.displayName)?" } ?? "",
+                            isPresented: Binding(get: { deletingHost != nil }, set: { if !$0 { deletingHost = nil } }),
+                            titleVisibility: .visible, presenting: deletingHost) { host in
+            Button("Delete Host", role: .destructive) {
+                for s in sessions.sessions where s.hostID == host.id { sessions.close(s.id) }
+                Task { await tunnels.stop(hostID: host.id) }
+                store.delete(host: host.id)
+            }
+        } message: { _ in
+            Text("Its saved password and tunnels are removed too.")
+        }
         .sheet(item: $filesHost) { host in
             FilesView(host: host, existing: nil)
                 .hostKeyPrompts()
         }
-        .sheet(item: $editing) { host in
+        .sheet(item: $editing, onDismiss: {
+            if let h = openAfterEdit { openAfterEdit = nil; sessions.open(h) }
+        }) { host in
             NavigationStack {
                 HostEditView(host: host, saveTitle: connectAfterSave ? "Connect" : "Save") { saved in
-                    if connectAfterSave { sessions.open(saved) }
+                    // Opened in onDismiss: presenting the terminal while this sheet
+                    // is still animating away gets dropped.
+                    if connectAfterSave { openAfterEdit = saved }
                     connectAfterSave = false
                 }
             }
@@ -214,7 +232,8 @@ struct HostListView: View {
         let port = p.port ?? 22
         if let h = store.data.hosts.first(where: {
             $0.hostname.caseInsensitiveCompare(p.host) == .orderedSame && $0.port == port && (p.user == nil || $0.username == p.user)
-        }), (h.hasPassword || h.identityID != nil) {
+        }) {
+            // No saved password is fine: the session asks for one.
             sessions.open(h)
         } else {
             connectAfterSave = true
@@ -260,13 +279,13 @@ struct HostListView: View {
     }
 
     private func row(_ host: Host) -> some View {
-        Button { sessions.open(host) } label: {
+        Button { sessions.resume(host) } label: {
             HostRow(host: host, jumpNames: host.jumpHostIDs.compactMap { store.host($0)?.displayName },
                     open: sessions.isOpen(host.id), failure: sessions.failures[host.id])
         }
         .foregroundStyle(.primary)
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive) { store.delete(host: host.id) } label: { Label("Delete", systemImage: "trash") }
+            Button(role: .destructive) { deletingHost = host } label: { Label("Delete", systemImage: "trash") }
             Button { connectAfterSave = false; editing = host } label: { Label("Edit", systemImage: "pencil") }.tint(.gray)
         }
         .swipeActions(edge: .leading) {
@@ -280,7 +299,9 @@ struct HostListView: View {
             .tint(.yellow)
         }
         .contextMenu {
-            Button { sessions.open(host) } label: { Label("Connect", systemImage: "terminal") }
+            Button { sessions.open(host) } label: {
+                Label(sessions.sessions.contains { $0.hostID == host.id } ? "New Session" : "Connect", systemImage: "terminal")
+            }
             Button { filesHost = host } label: { Label("Files", systemImage: "folder") }
             Button { connectAfterSave = false; editing = host } label: { Label("Edit", systemImage: "pencil") }
             Button {
@@ -288,7 +309,8 @@ struct HostListView: View {
                 copy.id = UUID()
                 copy.label = host.displayName + " copy"
                 copy.lastConnected = nil
-                store.upsert(copy, password: nil)
+                copy.hasPassword = false
+                store.upsert(copy, password: Keychain.string(for: .hostPassword(host.id)))
             } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
             Button { UIPasteboard.general.string = "ssh -p \(host.port) \(host.username)@\(host.hostname)" } label: {
                 Label("Copy SSH Command", systemImage: "doc.on.doc")
@@ -296,7 +318,7 @@ struct HostListView: View {
             if let f = sessions.failures[host.id] {
                 Button { UIPasteboard.general.string = f } label: { Label("Copy Last Error", systemImage: "exclamationmark.circle") }
             }
-            Button(role: .destructive) { store.delete(host: host.id) } label: { Label("Delete", systemImage: "trash") }
+            Button(role: .destructive) { deletingHost = host } label: { Label("Delete", systemImage: "trash") }
         }
     }
 }
@@ -351,7 +373,7 @@ struct HostRow: View {
                 }
                 Text(subtitle).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
                 if !host.tags.isEmpty {
-                    Text(host.tags.map { "#" + $0 }.joined(separator: " ")).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                    Text(host.tags.map { "#" + $0 }.joined(separator: " ")).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
@@ -362,7 +384,7 @@ struct HostRow: View {
                 Circle().fill(.green).frame(width: 8, height: 8).accessibilityLabel("Connected")
             } else if let last = host.lastConnected {
                 Text(last, format: .relative(presentation: .numeric, unitsStyle: .narrow))
-                    .font(.caption2).foregroundStyle(.tertiary)
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .combine)

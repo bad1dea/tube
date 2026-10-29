@@ -145,9 +145,8 @@ final class AppStore: ObservableObject {
     func delete(host id: UUID) {
         Keychain.remove(.hostPassword(id))
         data.hosts.removeAll { $0.id == id }
-        for i in data.hosts.indices {
-            data.hosts[i].jumpHostIDs.removeAll { $0 == id }
-        }
+        // Hosts that jumped through it keep the reference and fail with
+        // missingJumpHost; dropping it would make them connect directly.
         data.forwards.removeAll { $0.hostID == id }
     }
 
@@ -156,15 +155,20 @@ final class AppStore: ObservableObject {
         data.hosts[i].lastConnected = Date()
     }
 
-    /// Jump hosts first, target last. Fails on a missing or cyclic hop.
-    /// Hosts in connection order: jump hosts first, target last.
+    /// Hosts in connection order: jump hosts first, target last. A jump host's
+    /// own jump hosts come before it, as with ProxyJump in ssh_config.
+    /// Fails on a missing or cyclic hop.
     func chainHosts(for host: Host) throws -> [Host] {
+        var seen: Set<UUID> = []
+        return try expandJumps(host, &seen)
+    }
+
+    private func expandJumps(_ host: Host, _ seen: inout Set<UUID>) throws -> [Host] {
+        guard seen.insert(host.id).inserted else { throw ChainError.cycle }
         var out: [Host] = []
-        var seen: Set<UUID> = [host.id]
         for id in host.jumpHostIDs {
             guard let j = self.host(id) else { throw ChainError.missingJumpHost }
-            guard seen.insert(id).inserted else { throw ChainError.cycle }
-            out.append(j)
+            out += try expandJumps(j, &seen)
         }
         return out + [host]
     }
@@ -261,10 +265,10 @@ enum ChainError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .missingJumpHost: return "A jump host for this connection was deleted"
+        case .missingJumpHost: return "A jump host for this connection was deleted. Pick another one in the host’s settings."
         case .cycle: return "Jump hosts form a loop"
-        case .missingKey(let h): return "Private key for \(h) is missing from the Keychain"
-        case .noCredential(_, let h): return "No password or identity set for \(h)"
+        case .missingKey(let h): return "The key for \(h) is missing from this device. Pick another key in the host’s settings."
+        case .noCredential(_, let h): return "No password or key set for \(h)"
         }
     }
 }

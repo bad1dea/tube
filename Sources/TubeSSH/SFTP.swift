@@ -22,6 +22,15 @@ public struct RemoteFile: Hashable, Sendable, Identifiable {
     }
 }
 
+public enum FileBrowserError: Error, CustomStringConvertible {
+    case folderNotEmpty
+    public var description: String {
+        switch self {
+        case .folderNotEmpty: return "Folder isn’t empty."
+        }
+    }
+}
+
 /// SFTP session over an existing connection.
 public final class FileBrowser: @unchecked Sendable {
     let sftp: SFTPClient
@@ -92,13 +101,34 @@ public final class FileBrowser: @unchecked Sendable {
         try await file.close()
     }
 
+    /// `list` reports symlinks as themselves (lstat); this follows them.
+    public func isDirectory(_ path: String) async -> Bool {
+        guard let mode = try? await sftp.getAttributes(at: path).permissions else { return false }
+        return mode & 0o170000 == 0o040000
+    }
+
+    public func exists(_ path: String) async throws -> Bool {
+        do {
+            _ = try await sftp.getAttributes(at: path)
+            return true
+        } catch let e as SFTPMessage.Status where e.errorCode == .noSuchFile {
+            return false
+        }
+    }
+
     public func makeDirectory(_ path: String) async throws {
         try await sftp.createDirectory(atPath: path)
     }
 
     public func remove(_ file: RemoteFile) async throws {
         if file.isDirectory {
-            try await sftp.rmdir(at: file.path)
+            do {
+                try await sftp.rmdir(at: file.path)
+            } catch let e as SFTPMessage.Status where e.errorCode == .failure {
+                // OpenSSH sends a bare SSH_FX_FAILURE for ENOTEMPTY.
+                if let entries = try? await list(file.path), !entries.isEmpty { throw FileBrowserError.folderNotEmpty }
+                throw e
+            }
         } else {
             try await sftp.remove(at: file.path)
         }

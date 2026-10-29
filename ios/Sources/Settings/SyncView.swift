@@ -8,6 +8,7 @@ struct SyncView: View {
     @EnvironmentObject var sync: SyncController
     @Environment(\.dismiss) private var dismiss
     @State private var mode: Mode?
+    @State private var confirmLeave = false
 
     enum Mode: String, Identifiable {
         case create, join, recover
@@ -60,7 +61,12 @@ struct SyncView: View {
                     Text("Removing a device also changes the vault key, so it can’t read anything new.")
                 }
                 Section {
-                    Button("Stop Syncing on This Device", role: .destructive) { sync.leave() }
+                    Button("Stop Syncing on This Device", role: .destructive) { confirmLeave = true }
+                        .confirmationDialog("Stop syncing on this device?", isPresented: $confirmLeave, titleVisibility: .visible) {
+                            Button("Stop Syncing", role: .destructive) { sync.leave() }
+                        } message: {
+                            Text("Hosts and keys stay here, but changes will no longer sync. To sync again you’ll need a pairing code or the recovery key.")
+                        }
                 } footer: {
                     Text("Local hosts and keys stay on this device.")
                 }
@@ -146,6 +152,11 @@ struct SyncSetupView: View {
     @State private var error: String?
     @State private var created: (RecoveryKey, String)?
     @State private var savedKey = false
+
+    init(mode: SyncView.Mode, code: String = "") {
+        self.mode = mode
+        _code = State(initialValue: code)
+    }
 
     var body: some View {
         Form {

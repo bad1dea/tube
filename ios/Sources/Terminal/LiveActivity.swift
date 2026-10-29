@@ -8,6 +8,13 @@ final class SessionsLiveActivity {
     private var activity: Activity<SessionsActivityAttributes>?
     private var last: SessionsActivityAttributes.ContentState?
 
+    init() {
+        // Left over if the app was killed with sessions open; none of them survived.
+        for a in Activity<SessionsActivityAttributes>.activities {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
     func update(_ sessions: [SessionsActivityAttributes.ContentState.Session]) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         if sessions.isEmpty {

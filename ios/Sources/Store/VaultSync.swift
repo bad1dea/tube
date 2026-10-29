@@ -230,6 +230,8 @@ final class SyncController: ObservableObject {
     @Published private(set) var syncing = false
     @Published var lastError: String?
     @Published var devices: [SyncAPI.DeviceInfo] = []
+    /// Set by a tube://pair link; TubeApp shows the join sheet while non-nil.
+    @Published var pairingCode: String?
 
     private let store: AppStore
     private lazy var adapter = AppSyncStore(store: store)
@@ -279,6 +281,14 @@ final class SyncController: ObservableObject {
         await syncNow()
     }
 
+    func openPairing(_ code: String) {
+        guard !enabled else {
+            lastError = "This device already syncs. Stop syncing here first to join another vault."
+            return
+        }
+        pairingCode = code
+    }
+
     func invite() async throws -> String {
         guard let c = credentials else { throw SyncError(status: 0, message: "Sync is off") }
         return try await VaultClient.invite(c)
@@ -320,7 +330,8 @@ final class SyncController: ObservableObject {
         syncing = true
         defer { syncing = false }
         do {
-            try await VaultClient.sync(c, store: adapter)
+            let next = try await VaultClient.sync(c, store: adapter).creds
+            if next != c { try save(next) }
             store.data.sync.lastSync = Date()
             lastError = nil
         } catch let e as SyncError where e.status == 401 {

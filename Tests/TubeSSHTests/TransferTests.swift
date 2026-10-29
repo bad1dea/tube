@@ -71,6 +71,39 @@ final class TransferTests: XCTestCase {
         await conn.close()
     }
 
+    func testSFTPSymlinkAndNonEmptyFolder() async throws {
+        let conn = try await connect()
+        let fb = try await conn.openFileBrowser()
+        let dir = try await fb.home() + "/sftp-link-\(UUID().uuidString.prefix(8))"
+        _ = try await conn.run("mkdir -p \(dir)/real && touch \(dir)/real/f && ln -s real \(dir)/link && ln -s real/f \(dir)/flink")
+
+        let list = try await fb.list(dir)
+        let link = try XCTUnwrap(list.first { $0.name == "link" })
+        XCTAssertTrue(link.isSymlink)
+        XCTAssertFalse(link.isDirectory)
+        let isDirLink = await fb.isDirectory(link.path)
+        let isFileLink = await fb.isDirectory(dir + "/flink")
+        XCTAssertTrue(isDirLink)
+        XCTAssertFalse(isFileLink)
+        let inLink = try await fb.list(link.path)
+        XCTAssertEqual(inLink.map(\.name), ["f"])
+
+        let there = try await fb.exists(dir + "/real/f")
+        let missing = try await fb.exists(dir + "/nope")
+        XCTAssertTrue(there)
+        XCTAssertFalse(missing)
+
+        let real = try XCTUnwrap(list.first { $0.name == "real" })
+        do {
+            try await fb.remove(real)
+            XCTFail("rmdir of a non-empty folder succeeded")
+        } catch FileBrowserError.folderNotEmpty {}
+
+        _ = try await conn.run("rm -rf \(dir)")
+        await fb.close()
+        await conn.close()
+    }
+
     /// -L: local port -> sshd on the target itself, read its banner.
     func testLocalForward() async throws {
         let conn = try await connect()

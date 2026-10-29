@@ -69,6 +69,7 @@ final class TerminalSession: ObservableObject, Identifiable {
 
     func connect(password: String? = nil, for passwordHost: UUID? = nil) {
         if let password, let passwordHost { typedPasswords[passwordHost] = password }
+        changedKey = nil
         guard let store, let host = store.host(hostID) else {
             state = .disconnected("Host was deleted")
             return
@@ -91,14 +92,21 @@ final class TerminalSession: ObservableObject, Identifiable {
         let terminal = view.getTerminal()
         let cols = terminal.cols, rows = terminal.rows
         let trust = self.trust
+        attempt += 1
+        let mine = attempt
 
         Task {
             do {
                 let conn = try await SSHConnection.connect(chain: chain, trust: trust)
+                // Closed or reconnected while this attempt was in flight.
+                guard mine == self.attempt else { await conn.close(); return }
                 let shell = ShellSession()
                 try await shell.start(on: conn, cols: cols, rows: rows)
+                guard mine == self.attempt else { shell.close(); await conn.close(); return }
                 self.attach(conn, shell)
                 store.markConnected(host.id)
+            } catch where mine != self.attempt {
+                return
             } catch SSHConnectError.authenticationFailed(let h, let p, let u) {
                 // Ask again only for a host that logs in with a password.
                 if let rejected = hosts.first(where: { $0.hostname == h && $0.port == p && $0.username == u }),
@@ -171,7 +179,7 @@ final class TerminalSession: ObservableObject, Identifiable {
             onExit?()
             return
         }
-        let reason = shell?.exitError.map { "\($0)" }
+        let reason = shell?.exitError.map { SSHErrorText.describe($0, target: destination) }
         teardown()
         state = .disconnected(reason)
         view.feed(text: "\r\n[connection closed]\r\n")
@@ -179,7 +187,8 @@ final class TerminalSession: ObservableObject, Identifiable {
 
     private func fail(_ error: Error) {
         teardown()
-        let message = (error as? CustomStringConvertible)?.description ?? error.localizedDescription
+        if case SSHConnectError.hostKeyChanged(let h, let p, _, _) = error { changedKey = (h, p) }
+        let message = SSHErrorText.describe(error, target: destination)
         state = .disconnected(message)
         view.feed(text: "\r\n\u{1b}[31m\(message)\u{1b}[0m\r\n")
     }
@@ -197,6 +206,16 @@ final class TerminalSession: ObservableObject, Identifiable {
     var onCommand: ((String) -> Void)?
     /// The remote shell logged out (`exit`, ^D). The manager closes the session.
     var onExit: (() -> Void)?
+    private var attempt = 0
+    /// Set when the last connect failed on a changed host key, for "Forget Old Key".
+    @Published private(set) var changedKey: (host: String, port: Int)?
+
+    func forgetChangedKeyAndReconnect() {
+        guard let key = changedKey, let store else { return }
+        store.data.knownHosts.remove(host: key.host, port: key.port)
+        trust.reload()
+        connect()
+    }
 
     /// Prompt text in front of the cursor when the current line started.
     private var linePrompt = ""
@@ -242,6 +261,7 @@ final class TerminalSession: ObservableObject, Identifiable {
     }
 
     func close() {
+        attempt += 1
         teardown()
     }
 
@@ -258,9 +278,16 @@ final class TerminalSession: ObservableObject, Identifiable {
         connection = nil
     }
 
+    /// Pinch and Cmd+/-: change this host's own settings if it has them, else the global ones.
     func setFontSize(_ size: CGFloat) {
-        view.font = TerminalFonts.font(name: store?.data.settings.terminal.fontName ?? "", size: size)
-        store?.data.settings.terminal.fontSize = Double(size)
+        guard let store else { return }
+        if let i = store.data.hosts.firstIndex(where: { $0.id == hostID }), store.data.hosts[i].terminal != nil {
+            store.data.hosts[i].terminal?.fontSize = Double(size)
+            view.font = TerminalFonts.font(name: store.data.hosts[i].terminal?.fontName ?? "", size: size)
+        } else {
+            store.data.settings.terminal.fontSize = Double(size)
+            view.font = TerminalFonts.font(name: store.data.settings.terminal.fontName, size: size)
+        }
     }
 
     func applySettings(_ settings: TerminalSettings) {

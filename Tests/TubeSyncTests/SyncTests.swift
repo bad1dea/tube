@@ -164,6 +164,55 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(sl.text("h"), "after")
     }
 
+    func testOtherDevicesFollowRotation() async throws {
+        let (a, rk) = try await VaultClient.create(server: try server, deviceName: "a")
+        let b = try await VaultClient.claim(try await VaultClient.invite(a), deviceName: "b")
+        let c = try await VaultClient.recover(server: try server, vaultID: a.vaultID, recoveryKey: rk, deviceName: "c")
+        let sa = MemoryStore(), sb = MemoryStore()
+        sa.edit("h", "v1")
+        try await VaultClient.sync(a, store: sa)
+        try await VaultClient.sync(b, store: sb)
+        try await VaultClient.sync(c, store: MemoryStore())
+
+        // B edits while A revokes C.
+        sb.edit("b1", "from-b")
+        let a2 = try await VaultClient.revokeAndRotate(a, deviceID: c.deviceID, store: sa)
+        XCTAssertEqual(a2.epoch, 2)
+
+        // B pulls epoch 2 records, fetches the new key, pushes at epoch 2.
+        let b2 = try await VaultClient.sync(b, store: sb).creds
+        XCTAssertEqual(b2.epoch, 2)
+        XCTAssertEqual(b2.keys[2], a2.keys[2])
+        XCTAssertEqual(sb.text("h"), "v1")
+        XCTAssertFalse(sb.records["b1"]!.dirty)
+        try await VaultClient.sync(a2, store: sa)
+        XCTAssertEqual(sa.text("b1"), "from-b")
+
+        // Nothing new to pull, so only the push sees the stale epoch (409).
+        let sStale = MemoryStore()
+        sStale.cursor = sa.cursor
+        sStale.edit("b2", "pushed late")
+        let r = try await VaultClient.sync(b, store: sStale)
+        XCTAssertEqual(r.creds.epoch, 2)
+        XCTAssertEqual(r.pushed, 1)
+        try await VaultClient.sync(a2, store: sa)
+        XCTAssertEqual(sa.text("b2"), "pushed late")
+
+        // An invite from a device that has not synced since carries the new key.
+        let d = try await VaultClient.claim(try await VaultClient.invite(b), deviceName: "d")
+        XCTAssertEqual(d.keys[2], a2.keys[2])
+        let sd = MemoryStore()
+        try await VaultClient.sync(d, store: sd)
+        XCTAssertEqual(sd.text("b2"), "pushed late")
+
+        do {
+            try await VaultClient.sync(c, store: MemoryStore())
+            XCTFail("revoked device synced")
+        } catch let e as SyncError {
+            XCTAssertEqual(e.status, 401)
+        }
+    }
+
     func testServerNeverSeesPlaintext() async throws {
         let (a, _) = try await VaultClient.create(server: try server, deviceName: "a")
         let s = MemoryStore()

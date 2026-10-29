@@ -11,30 +11,43 @@ final class FilesModel: ObservableObject {
     @Published var error: String?
     @Published var transfer: (name: String, done: UInt64, total: UInt64?)?
     @Published var preview: URL?
+    @Published var connectError: String?
+    /// Set when the chain has a host with nothing saved to log in with.
+    @Published var needsPassword: (id: UUID, name: String)?
+    @Published var replacing: (urls: [URL], existing: [String])?
 
-    private var browser: FileBrowser?
+    @Published private(set) var browser: FileBrowser?
     private var ownConnection: SSHConnection?
+    private var passwords: [UUID: String] = [:]   // used for this connection only, never saved
     let host: Host
 
     init(host: Host) { self.host = host }
 
-    func start(existing: SSHConnection?, store: AppStore, trust: HostKeyTrust) async {
+    func start(existing: SSHConnection?, store: AppStore, trust: HostKeyTrust, password: String? = nil) async {
         loading = true
+        connectError = nil
         defer { loading = false }
         do {
             let conn: SSHConnection
             if let existing, existing.isConnected {
                 conn = existing
             } else {
-                conn = try await SSHConnection.connect(chain: try store.chain(for: host), trust: trust)
+                await ownConnection?.close()
+                ownConnection = nil
+                if let id = needsPassword?.id, let password { passwords[id] = password }
+                conn = try await SSHConnection.connect(chain: try store.chain(for: host, passwords: passwords), trust: trust)
                 ownConnection = conn
             }
             let b = try await conn.openFileBrowser()
             browser = b
             path = try await b.home()
             try await reload()
+        } catch ChainError.noCredential(let id, let name) {
+            needsPassword = (id, name)
         } catch {
-            self.error = "\(error)"
+            await browser?.close()
+            browser = nil
+            connectError = SSHErrorText.describe(error, target: host.destination)
         }
     }
 
@@ -53,7 +66,17 @@ final class FilesModel: ObservableObject {
         path = dir
         do { try await reload() } catch {
             path = old
-            self.error = "\(error)"
+            self.error = SSHErrorText.describe(error, target: host.destination)
+        }
+    }
+
+    func select(_ f: RemoteFile) async {
+        if f.isDirectory {
+            await open(f.path)
+        } else if f.isSymlink, let browser, await browser.isDirectory(f.path) {
+            await open(f.path)
+        } else {
+            await download(f)
         }
     }
 
@@ -77,7 +100,22 @@ final class FilesModel: ObservableObject {
             preview = local
         } catch {
             transfer = nil
-            self.error = "Download failed: \(error)"
+            self.error = "Download failed: " + SSHErrorText.describe(error, target: host.destination)
+        }
+    }
+
+    /// Asks before overwriting: uploads straight away only if nothing is in the way.
+    func upload(_ urls: [URL]) async {
+        guard let browser else { return }
+        var existing: [String] = []
+        for u in urls {
+            let dest = (path as NSString).appendingPathComponent(u.lastPathComponent)
+            if (try? await browser.exists(dest)) ?? true { existing.append(u.lastPathComponent) }
+        }
+        if existing.isEmpty {
+            for u in urls { await upload(u) }
+        } else {
+            replacing = (urls, existing)
         }
     }
 
@@ -95,7 +133,7 @@ final class FilesModel: ObservableObject {
             try await reload()
         } catch {
             transfer = nil
-            self.error = "Upload failed: \(error)"
+            self.error = "Upload failed: " + SSHErrorText.describe(error, target: host.destination)
         }
     }
 
@@ -104,7 +142,7 @@ final class FilesModel: ObservableObject {
         do {
             try await browser.makeDirectory((path as NSString).appendingPathComponent(name))
             try await reload()
-        } catch { self.error = "\(error)" }
+        } catch { self.error = SSHErrorText.describe(error, target: host.destination) }
     }
 
     func rename(_ f: RemoteFile, to name: String) async {
@@ -112,7 +150,7 @@ final class FilesModel: ObservableObject {
         do {
             try await browser.rename(f.path, to: (path as NSString).appendingPathComponent(name))
             try await reload()
-        } catch { self.error = "\(error)" }
+        } catch { self.error = SSHErrorText.describe(error, target: host.destination) }
     }
 
     func delete(_ f: RemoteFile) async {
@@ -120,7 +158,7 @@ final class FilesModel: ObservableObject {
         do {
             try await browser.remove(f)
             try await reload()
-        } catch { self.error = "\(error)" }
+        } catch { self.error = SSHErrorText.describe(error, target: host.destination) }
     }
 }
 
@@ -135,6 +173,8 @@ struct FilesView: View {
     @State private var askFolder = false
     @State private var renaming: RemoteFile?
     @State private var renameText = ""
+    @State private var deleting: RemoteFile?
+    @State private var password = ""
 
     init(host: Host, existing: SSHConnection?) {
         _model = StateObject(wrappedValue: FilesModel(host: host))
@@ -150,11 +190,7 @@ struct FilesView: View {
                     }
                 }
                 ForEach(model.entries) { f in
-                    Button {
-                        Task {
-                            if f.isDirectory { await model.open(f.path) } else { await model.download(f) }
-                        }
-                    } label: {
+                    Button { Task { await model.select(f) } } label: {
                         HStack(spacing: 10) {
                             Image(systemName: f.isDirectory ? "folder" : f.isSymlink ? "link" : "doc")
                                 .foregroundStyle(f.isDirectory ? Color.accentColor : .secondary)
@@ -175,7 +211,8 @@ struct FilesView: View {
                     }
                     .foregroundStyle(.primary)
                     .swipeActions {
-                        Button("Delete", role: .destructive) { Task { await model.delete(f) } }
+                        // Not role: .destructive, which removes the row before the dialog answers.
+                        Button("Delete") { deleting = f }.tint(.red)
                         Button("Rename") { renaming = f; renameText = f.name }.tint(.gray)
                     }
                     .contextMenu {
@@ -189,7 +226,11 @@ struct FilesView: View {
             .listStyle(.plain)
             .refreshable { try? await model.reload() }
             .overlay {
-                if model.loading { ProgressView() }
+                if model.loading {
+                    ProgressView()
+                } else if model.browser == nil {
+                    connectForm
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if let t = model.transfer {
@@ -212,13 +253,30 @@ struct FilesView: View {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { askFolder = true } label: { Image(systemName: "folder.badge.plus") }
                         .accessibilityLabel("New Folder")
+                        .disabled(model.browser == nil)
                     Button { importing = true } label: { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Upload")
+                        .disabled(model.browser == nil)
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { r in
                 guard case .success(let urls) = r else { return }
-                Task { for u in urls { await model.upload(u) } }
+                Task { await model.upload(urls) }
+            }
+            .confirmationDialog(replaceQuestion, isPresented: Binding(get: { model.replacing != nil }, set: { if !$0 { model.replacing = nil } }),
+                                titleVisibility: .visible, presenting: model.replacing) { r in
+                Button("Replace", role: .destructive) { Task { for u in r.urls { await model.upload(u) } } }
+                if r.urls.count > r.existing.count {
+                    Button("Skip Existing") { Task { for u in r.urls where !r.existing.contains(u.lastPathComponent) { await model.upload(u) } } }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog(deleting.map { "Delete \($0.name)?" } ?? "",
+                                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                                titleVisibility: .visible, presenting: deleting) { f in
+                Button(f.isDirectory ? "Delete Folder" : "Delete File", role: .destructive) { Task { await model.delete(f) } }
+            } message: { _ in
+                Text("This deletes it from \(model.host.displayName). It can’t be undone.")
             }
             .alert("New Folder", isPresented: $askFolder) {
                 TextField("Name", text: $newFolder).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -239,5 +297,47 @@ struct FilesView: View {
         }
         .task { await model.start(existing: existing, store: store, trust: trust) }
         .onDisappear { Task { await model.stop() } }
+    }
+
+    private var replaceQuestion: String {
+        guard let names = model.replacing?.existing else { return "" }
+        return names.count == 1 ? "Replace \(names[0])?" : "Replace \(names.count) existing files?"
+    }
+
+    @ViewBuilder private var connectForm: some View {
+        if let need = model.needsPassword {
+            VStack(spacing: 12) {
+                Text("No password or key saved for \(need.name). Enter the password to connect. It isn’t saved.")
+                    .multilineTextAlignment(.center)
+                if let e = model.connectError {
+                    Text(e).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
+                }
+                SecureField("Password", text: $password)
+                    .textContentType(.password)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(connectWithPassword)
+                Button("Connect", action: connectWithPassword)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(password.isEmpty)
+            }
+            .padding()
+            .frame(maxWidth: 400)
+        } else if let e = model.connectError {
+            ContentUnavailableView {
+                Label("Couldn’t Connect", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(e)
+            } actions: {
+                Button("Retry") { Task { await model.start(existing: existing, store: store, trust: trust) } }
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func connectWithPassword() {
+        guard !password.isEmpty else { return }
+        let pw = password
+        password = ""
+        Task { await model.start(existing: existing, store: store, trust: trust, password: pw) }
     }
 }

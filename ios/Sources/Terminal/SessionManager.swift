@@ -53,7 +53,19 @@ final class SessionManager: ObservableObject {
 
     var active: TerminalSession? { sessions.first { $0.id == activeID } }
 
+    /// Tapping a host: go back to its session if one is open, else connect.
+    func resume(_ host: Host) {
+        if let s = sessions.first(where: { $0.hostID == host.id && $0.state == .connected })
+            ?? sessions.first(where: { $0.hostID == host.id }) {
+            select(s.id)
+            terminalPresented = true
+        } else {
+            open(host)
+        }
+    }
+
     func open(_ host: Host) {
+        if sessions.isEmpty { keyboard.panelVisible = store.data.settings.showKeyPanelByDefault }
         let s = TerminalSession(host: host, store: store, trust: trust, keyboard: keyboard)
         s.onCommand = { [weak self] line in self?.recordCommand(line) }
         sessions.append(s)
@@ -188,7 +200,7 @@ final class SessionManager: ObservableObject {
     }
 
     func run(snippet: Snippet, values: [String: String]) {
-        guard let s = active else { return }
+        guard let s = active, s.state == .connected else { return }
         let text = snippet.render(values)
         store.recordHistory(text)
         s.send(Array(text.utf8) + (snippet.runImmediately ? [0x0d] : []))

@@ -33,7 +33,7 @@ final class TerminalPad: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.94)
+        backgroundColor = .secondarySystemBackground
         layer.cornerRadius = 14
         layer.cornerCurve = .continuous
         layer.borderWidth = 1

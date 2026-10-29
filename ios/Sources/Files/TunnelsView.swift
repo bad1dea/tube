@@ -11,6 +11,7 @@ final class TunnelManager: ObservableObject {
     @Published var errors: [UUID: String] = [:]
     private var handles: [UUID: PortForwardHandle] = [:]
     private var connections: [UUID: SSHConnection] = [:]      // host id -> connection
+    private var hostOf: [UUID: UUID] = [:]                    // forward id -> host id
 
     func start(_ f: PortForward, store: AppStore, trust: HostKeyTrust) async {
         guard let host = store.host(f.hostID) else { return }
@@ -33,28 +34,39 @@ final class TunnelManager: ObservableObject {
                 h = try await conn.forwardDynamic(bindHost: f.bindAddress, bindPort: f.bindPort)
             }
             handles[f.id] = h
+            hostOf[f.id] = host.id
             running[f.id] = h.boundPort
+        } catch ChainError.noCredential(_, let name) {
+            errors[f.id] = "No password or key saved for \(name). Save a password in the host’s settings or pick a key."
         } catch {
-            errors[f.id] = "\(error)"
+            errors[f.id] = SSHErrorText.describe(error, target: host.destination)
         }
     }
 
     /// After returning from the background: forwards whose connection iOS
     /// closed are shown as stopped instead of pretending to run.
     func markDropped() {
+        for id in running.keys where handles[id]?.isAlive != true {
+            if let h = handles.removeValue(forKey: id) { Task { await h.stop() } }
+            hostOf[id] = nil
+            running[id] = nil
+            errors[id] = "Stopped while Tube was in the background."
+        }
         for (hostID, c) in connections where !c.isConnected {
             connections[hostID] = nil
-        }
-        for id in running.keys where handles[id]?.isAlive == false {
-            handles[id] = nil
-            running[id] = nil
-            errors[id] = "Stopped while Tube was in the background"
         }
     }
 
     func stop(_ id: UUID) async {
         await handles.removeValue(forKey: id)?.stop()
+        hostOf[id] = nil
         running[id] = nil
+    }
+
+    /// Stops every forward on the host and closes its connection, e.g. when the host is deleted.
+    func stop(hostID: UUID) async {
+        for id in hostOf.filter({ $0.value == hostID }).map(\.key) { await stop(id) }
+        await connections.removeValue(forKey: hostID)?.close()
     }
 
     func stopAll() async {
@@ -75,20 +87,25 @@ struct TunnelsView: View {
         List {
             ForEach(store.data.forwards) { f in
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(f.label.isEmpty ? summary(f) : f.label)
-                        Text(summary(f)).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        if let e = tunnels.errors[f.id] { Text(e).font(.caption).foregroundStyle(.red) }
+                    Button { editing = f } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(f.label.isEmpty ? summary(f) : f.label)
+                                Text(summary(f)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                if let e = tunnels.errors[f.id] { Text(e).font(.caption).foregroundStyle(.red) }
+                            }
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
                     }
-                    Spacer()
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the tunnel settings.")
                     Toggle("", isOn: Binding(
                         get: { tunnels.running[f.id] != nil },
                         set: { on in Task { if on { await tunnels.start(f, store: store, trust: trust) } else { await tunnels.stop(f.id) } } }))
                     .labelsHidden()
                     .accessibilityLabel("Run \(summary(f))")
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { editing = f }
             }
             .onDelete { idx in
                 let ids = idx.map { store.data.forwards[$0].id }
@@ -144,12 +161,12 @@ struct TunnelEditView: View {
                 Text("Remote (-R)").tag(PortForward.Kind.remote)
                 Text("Dynamic SOCKS (-D)").tag(PortForward.Kind.dynamic)
             }
-            Section(forward.kind == .remote ? "Listen on server" : "Listen on this device") {
+            Section(forward.kind == .remote ? "Listen on Server" : "Listen on This Device") {
                 TextField("Address", text: $forward.bindAddress)
                 TextField("Port", value: $forward.bindPort, format: .number.grouping(.never)).keyboardType(.numberPad)
             }
             if forward.kind != .dynamic {
-                Section(forward.kind == .remote ? "Connect from this device to" : "Connect from server to") {
+                Section(forward.kind == .remote ? "Connect from This Device to" : "Connect from Server to") {
                     TextField("Host", text: $forward.targetHost)
                     TextField("Port", value: $forward.targetPort, format: .number.grouping(.never)).keyboardType(.numberPad)
                 }

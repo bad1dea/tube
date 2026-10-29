@@ -292,6 +292,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
 
     private func rebuildStrip() {
         stripStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        var activeChip: UIButton?
         for s in sessions.sessions {
             let active = s.id == sessions.activeID
             var config = active ? UIButton.Configuration.tinted() : UIButton.Configuration.gray()
@@ -304,6 +305,8 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
             config.imagePlacement = .leading
             let b = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in self?.sessions.select(s.id) })
             b.widthAnchor.constraint(lessThanOrEqualToConstant: 170).isActive = true
+            // The strip scrolls; without this the chips squeeze to "ru…" instead.
+            b.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
             b.accessibilityLabel = "Session \(sessions.label(for: s))"
             b.accessibilityTraits = active ? [.button, .selected] : .button
             b.menu = UIMenu(children: [
@@ -311,7 +314,10 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
                 UIAction(title: "Close", image: UIImage(systemName: "xmark"), attributes: .destructive) { [weak self] _ in self?.sessions.close(s.id) },
             ])
             stripStack.addArrangedSubview(b)
+            if active { activeChip = b }
         }
+        stripScroll.layoutIfNeeded()
+        if let chip = activeChip { stripScroll.scrollRectToVisible(chip.frame.insetBy(dx: -8, dy: 0), animated: false) }
     }
 
     private func showSuggestions(_ list: [String]) {
@@ -390,7 +396,16 @@ final class KeyPanel: UIInputView, UIInputViewAudioFeedback {
 
     override var intrinsicContentSize: CGSize {
         let compactHeight = traitCollection.verticalSizeClass == .compact
-        return CGSize(width: UIView.noIntrinsicMetric, height: compactHeight ? 200 : 320)
+        // Every key row whole (margins, 38pt rows, 6pt gaps) plus the tab bar.
+        // The height includes the home indicator area, which the tab bar sits above.
+        let n = CGFloat(KeyLayout.panelRows.count)
+        let full = 16 + n * 38 + (n - 1) * 6 + 40 + (window?.safeAreaInsets.bottom ?? 0)
+        return CGSize(width: UIView.noIntrinsicMetric, height: compactHeight ? 200 : full)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        invalidateIntrinsicContentSize()
     }
 
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
