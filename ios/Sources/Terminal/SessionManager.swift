@@ -21,6 +21,8 @@ final class SessionManager: ObservableObject {
     @Published var passwordRequest: PasswordRequest?
     @Published private(set) var suggestions: [String] = []
     private var typedWatcher: AnyCancellable?
+    private let liveActivity = SessionsLiveActivity()
+    private var activityWatcher: AnyCancellable?
     /// Last connection error per host, for the badge in the host list.
     @Published private(set) var failures: [UUID: String] = [:]
     private var stateWatchers: [UUID: AnyCancellable] = [:]
@@ -42,6 +44,10 @@ final class SessionManager: ObservableObject {
         self.trust = trust
         keyboard.clicks = store.data.settings.keyClicks
         keyboard.panelVisible = store.data.settings.showKeyPanelByDefault
+        // objectWillChange fires before the change lands; read on the next turn.
+        activityWatcher = objectWillChange.receive(on: RunLoop.main).sink { [weak self] in
+            self?.refreshLiveActivity()
+        }
     }
 
     var active: TerminalSession? { sessions.first { $0.id == activeID } }
@@ -77,6 +83,12 @@ final class SessionManager: ObservableObject {
 
     func select(_ id: UUID) {
         activeID = id
+    }
+
+    private func refreshLiveActivity() {
+        liveActivity.update(sessions.map {
+            .init(title: $0.title, osID: store.host($0.hostID)?.osID, connected: $0.state == .connected)
+        })
     }
 
     private func recordCommand(_ line: String) {

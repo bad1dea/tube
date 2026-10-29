@@ -1,8 +1,8 @@
 name: Apple setup
 
-# One-time (safe to re-run): registers pro.imnot.tube and creates the
-# "Tube AppStore" provisioning profile. The profile comes back as an artifact;
-# store it as the DIST_PROFILE_BASE64 secret (docs/release.md).
+# Safe to re-run: registers pro.imnot.tube and pro.imnot.tube.widgets and
+# creates their App Store profiles. The profiles come back as an artifact;
+# store them as DIST_PROFILE_BASE64 / DIST_PROFILE_WIDGETS_BASE64.
 on:
   workflow_dispatch:
 
@@ -41,5 +41,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tube-appstore-profile
-          path: ios/build/profile.mobileprovision
+          path: ios/build/*.mobileprovision
           if-no-files-found: error

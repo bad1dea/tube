@@ -76,7 +76,21 @@ workspace, React web app, test containers, CI.
       extension; the app shows them as stopped when it returns
 - [ ] SFTP and forwarding in the web client (relay would need one socket per channel)
 
-## M8 Polish — not started
+## M8 Polish — in progress
+
+From the first TestFlight build (0.1 build 3) on a real iPhone:
+
+- [x] Crash on the panel {} tab (unowned controller captured by the panel)
+- [x] Key rows could not be swiped (UIScrollView will not cancel UIControl touches)
+- [x] Password key typed without asking: now confirms, warns off-prompt, needs Face ID/passcode
+- [x] Long-press pad: arrows / scroll, copy, paste, select all
+- [x] Host list: quick connect, open sessions, recent, OS tiles, error badge, Library with counts
+- [x] Command suggestions while typing (own history + common commands); never records unechoed input
+- [x] Background: background task, opt-in location keep-alive, reconnect on return
+- [x] Live Activity on the lock screen / Dynamic Island with open sessions
+- [x] Simulator UI test that walks these flows and exports screenshots (ios-build.yml)
+- [ ] RSA user keys on iOS (rsa-sha2 signer)
+- [ ] mosh-style roaming / session resume
 
 ## M9 TestFlight — pipeline ready, blocked on Apple setup
 

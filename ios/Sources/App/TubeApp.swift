@@ -75,6 +75,10 @@ struct TubeApp: App {
                     if lock.locked { LockScreen(lock: lock) }
                 }
                 .onAppear { lock.lockIfEnabled(store.data.settings.lockWithBiometrics) }
+                .onOpenURL { url in
+                    // tube://sessions from the Live Activity.
+                    if url.host == "sessions", !sessions.sessions.isEmpty { sessions.terminalPresented = true }
+                }
                 .onChange(of: store.data.hosts) { sync.scheduleSync() }
                 .onChange(of: store.data.snippets) { sync.scheduleSync() }
                 .onChange(of: store.data.identities) { sync.scheduleSync() }

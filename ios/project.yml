@@ -27,7 +27,9 @@ targets:
     sources:
       - Sources
       - Resources
+      - Shared
     dependencies:
+      - target: TubeWidgets
       - package: TubeKit
         product: TermInput
       - package: TubeKit
@@ -53,6 +55,25 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER: Tube AppStore
+
+  TubeWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pro.imnot.tube.widgets
+        INFOPLIST_FILE: Widgets/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Tube Widgets AppStore
 
   TubeUITests:
     type: bundle.ui-testing

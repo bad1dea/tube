@@ -49,6 +49,7 @@ jobs:
           P12: ${{ secrets.DIST_CERT_P12_BASE64 }}
           P12_PASS: ${{ secrets.DIST_CERT_PASSWORD }}
           PROFILE: ${{ secrets.DIST_PROFILE_BASE64 }}
+          PROFILE_WIDGETS: ${{ secrets.DIST_PROFILE_WIDGETS_BASE64 }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
@@ -64,9 +65,12 @@ jobs:
           # install the provisioning profile where Xcode looks for it
           PROFILES="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES"
-          UUID="$(echo "$PROFILE" | base64 --decode | security cms -D 2>/dev/null | plutil -extract UUID raw -)"
-          echo "$PROFILE" | base64 --decode > "$PROFILES/$UUID.mobileprovision"
-          echo "installed profile UUID $UUID"
+          for P in "$PROFILE" "$PROFILE_WIDGETS"; do
+            [ -n "$P" ] || continue
+            UUID="$(echo "$P" | base64 --decode | security cms -D 2>/dev/null | plutil -extract UUID raw -)"
+            echo "$P" | base64 --decode > "$PROFILES/$UUID.mobileprovision"
+            echo "installed profile UUID $UUID"
+          done
           security find-identity -v -p codesigning "$KEYCHAIN"
 
       - name: Build & upload to TestFlight

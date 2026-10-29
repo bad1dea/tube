@@ -13,6 +13,12 @@ default_platform(:ios)
 # `distribute` and `status` lanes remain as standalone tools.
 
 APP_BUNDLE_ID = "pro.imnot.tube".freeze
+WIDGETS_BUNDLE_ID = "pro.imnot.tube.widgets".freeze
+# bundle id => [App ID name, App Store profile name, file written by `setup`]
+SIGNED_TARGETS = {
+  APP_BUNDLE_ID => ["Tube", "Tube AppStore", "profile.mobileprovision"],
+  WIDGETS_BUNDLE_ID => ["Tube Widgets", "Tube Widgets AppStore", "profile-widgets.mobileprovision"]
+}.freeze
 
 # Authenticate Spaceship's ConnectAPI with the ASC key (base64 in ENV).
 def asc_login
@@ -107,34 +113,33 @@ platform :ios do
   desc "Register bundle id and create the App Store provisioning profile"
   lane :setup do
     asc_login
-    bid = Spaceship::ConnectAPI::BundleId.find(APP_BUNDLE_ID)
-    if bid
-      UI.message("bundle id #{APP_BUNDLE_ID} already registered (#{bid.id})")
-    else
-      bid = Spaceship::ConnectAPI::BundleId.create(name: "Tube", identifier: APP_BUNDLE_ID, platform: "IOS")
-      UI.success("registered bundle id #{APP_BUNDLE_ID} (#{bid.id})")
-    end
-
     serial = ENV.fetch("DIST_CERT_SERIAL").downcase.sub(/^0+/, "")
     certs = Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: "DISTRIBUTION,IOS_DISTRIBUTION" })
     cert = certs.find { |c| c.serial_number.to_s.downcase.sub(/^0+/, "") == serial }
     UI.user_error!("No distribution certificate with serial #{serial} (have: #{certs.map(&:serial_number).join(', ')})") unless cert
     UI.message("using certificate #{cert.name} (#{cert.id}), expires #{cert.expiration_date}")
 
-    name = ENV.fetch("PROFILE_NAME", "Tube AppStore")
-    existing = Spaceship::ConnectAPI::Profile.all(filter: { name: name })
-    existing.each do |p|
-      UI.message("deleting existing profile '#{p.name}' (#{p.profile_state})")
-      p.delete!
+    SIGNED_TARGETS.each do |identifier, (app_name, profile_name, file)|
+      bid = Spaceship::ConnectAPI::BundleId.find(identifier)
+      if bid
+        UI.message("bundle id #{identifier} already registered (#{bid.id})")
+      else
+        bid = Spaceship::ConnectAPI::BundleId.create(name: app_name, identifier: identifier, platform: "IOS")
+        UI.success("registered bundle id #{identifier} (#{bid.id})")
+      end
+      Spaceship::ConnectAPI::Profile.all(filter: { name: profile_name }).each do |p|
+        UI.message("deleting existing profile '#{p.name}' (#{p.profile_state})")
+        p.delete!
+      end
+      profile = Spaceship::ConnectAPI::Profile.create(
+        name: profile_name, profile_type: "IOS_APP_STORE",
+        bundle_id_id: bid.id, certificate_ids: [cert.id], device_ids: []
+      )
+      out = File.expand_path("../build/#{file}", __dir__)
+      FileUtils.mkdir_p(File.dirname(out))
+      File.binwrite(out, Base64.decode64(profile.profile_content))
+      UI.success("created profile '#{profile_name}' (#{profile.uuid}), expires #{profile.expiration_date}")
     end
-    profile = Spaceship::ConnectAPI::Profile.create(
-      name: name, profile_type: "IOS_APP_STORE",
-      bundle_id_id: bid.id, certificate_ids: [cert.id], device_ids: []
-    )
-    out = File.expand_path("../build/profile.mobileprovision", __dir__)
-    FileUtils.mkdir_p(File.dirname(out))
-    File.binwrite(out, Base64.decode64(profile.profile_content))
-    UI.success("created profile '#{name}' (#{profile.uuid}), expires #{profile.expiration_date}")
 
     app = Spaceship::ConnectAPI::App.find(APP_BUNDLE_ID)
     if app
@@ -246,7 +251,10 @@ platform :ios do
       export_options: {
         signingStyle: "manual",
         teamID: team,
-        provisioningProfiles: { APP_BUNDLE_ID => profile }
+        provisioningProfiles: {
+          APP_BUNDLE_ID => profile,
+          WIDGETS_BUNDLE_ID => ENV.fetch("PROFILE_NAME_WIDGETS", "Tube Widgets AppStore")
+        }
       },
       output_directory: outdir,
       output_name: "Tube.ipa",
