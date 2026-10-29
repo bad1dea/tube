@@ -112,6 +112,7 @@ jobs:
           check "panel snippet + keyboard"    "sudo test -s $d/ok-snippet-df"
           check "two sessions, switch"        "sudo test -f $d/ok-session1 -a -f $d/ok-session2"
           check "password prompt connects"    "sudo test -f $d/ok-password-prompt"
+          check "key install + key login"     "sudo test -f $d/ok-key-login && sudo grep -q 'Accepted publickey for $UITEST_USER' /tmp/tube-sshd/sshd.log"
           sudo ls -la $d || true
           echo "--- sshd log (last 30) ---"; sudo tail -30 /tmp/tube-sshd/sshd.log || true
           exit $fail

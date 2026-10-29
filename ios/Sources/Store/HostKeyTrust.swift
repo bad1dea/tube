@@ -30,6 +30,8 @@ final class KnownHostsBox: @unchecked Sendable {
 @MainActor
 final class HostKeyTrust: ObservableObject, HostKeyTrustStore {
     @Published var question: HostKeyQuestion?
+    /// Sheets currently showing the question themselves (see `hostKeyPrompts()`).
+    @Published var sheetPrompts = 0
     private var answer: CheckedContinuation<Bool, Never>?
     nonisolated private let box: KnownHostsBox
     private weak var store: AppStore?

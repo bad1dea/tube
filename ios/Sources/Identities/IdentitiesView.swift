@@ -147,14 +147,27 @@ struct ImportKeyView: View {
 
 struct IdentityDetailView: View {
     @EnvironmentObject var store: AppStore
+    @Environment(\.dismiss) private var dismiss
     let identity: Identity
+    @State private var label = ""
     @State private var copied = false
     @State private var exporting = false
+    @State private var deleting = false
+
+    private var users: [Host] { store.data.hosts.filter { $0.identityID == identity.id } }
 
     var body: some View {
         Form {
+            Section {
+                TextField("Name", text: $label)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onSubmit { if !label.isEmpty { store.rename(identity: identity.id, to: label) } }
+                LabeledContent("Type", value: identity.algorithm.rawValue)
+            }
             Section("Public Key") {
                 Text(identity.publicKey).font(.caption.monospaced()).textSelection(.enabled)
+                    .accessibilityIdentifier("publicKey")
                 Button(copied ? "Copied" : "Copy Public Key") {
                     UIPasteboard.general.string = identity.publicKey
                     copied = true
@@ -162,12 +175,19 @@ struct IdentityDetailView: View {
                 ShareLink(item: identity.publicKey) { Label("Share Public Key", systemImage: "square.and.arrow.up") }
             }
             Section {
-                LabeledContent("Type", value: identity.algorithm.rawValue)
+                NavigationLink("Install on a Server") { InstallKeyView(identity: identity) }
+            } footer: {
+                Text(users.isEmpty
+                     ? "Adds this key to a server’s authorized_keys, so you can log in without a password."
+                     : "Used by \(users.map(\.displayName).joined(separator: ", ")).")
+            }
+            Section {
                 Toggle("Sync Private Key", isOn: Binding(
                     get: { store.data.identities.first { $0.id == identity.id }?.syncPrivateKey ?? false },
                     set: { v in
                         if let i = store.data.identities.firstIndex(where: { $0.id == identity.id }) {
                             store.data.identities[i].syncPrivateKey = v
+                            store.data.identities[i].updatedAt = Date()
                         }
                     }))
             } footer: {
@@ -175,12 +195,13 @@ struct IdentityDetailView: View {
             }
             Section {
                 Button("Export Private Key") { exporting = true }
-            } footer: {
-                Text("Hosts using this key: \(store.data.hosts.filter { $0.identityID == identity.id }.map(\.displayName).joined(separator: ", "))")
+                Button("Delete Key", role: .destructive) { deleting = true }
             }
         }
-        .navigationTitle(identity.label)
+        .navigationTitle(label.isEmpty ? identity.label : label)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { label = identity.label }
+        .onDisappear { if !label.isEmpty && label != identity.label { store.rename(identity: identity.id, to: label) } }
         .confirmationDialog("Export this private key? Anyone who has it can log in as you.", isPresented: $exporting, titleVisibility: .visible) {
             if let key = Keychain.string(for: .privateKey(identity.id)) {
                 ShareLink("Share Private Key", item: key)
@@ -188,6 +209,102 @@ struct IdentityDetailView: View {
                     UIPasteboard.general.setItems([[UTType.plainText.identifier: key]],
                                                   options: [.expirationDate: Date().addingTimeInterval(60), .localOnly: true])
                 }
+            }
+        }
+        .confirmationDialog(users.isEmpty
+                            ? "Delete this key from this device?"
+                            : "Delete this key? \(users.map(\.displayName).joined(separator: ", ")) will ask for a password instead.",
+                            isPresented: $deleting, titleVisibility: .visible) {
+            Button("Delete Key", role: .destructive) {
+                store.delete(identity: identity.id)
+                dismiss()
+            }
+        } message: {
+            Text("Servers that have the public key keep it. Remove it from their authorized_keys if you no longer need it.")
+        }
+    }
+}
+
+struct InstallKeyView: View {
+    @EnvironmentObject var store: AppStore
+    @EnvironmentObject var trust: HostKeyTrust
+    @Environment(\.dismiss) private var dismiss
+    let identity: Identity
+    @State private var hostID: UUID?
+    @State private var password = ""
+    @State private var useForHost = true
+    @State private var working = false
+    @State private var error: String?
+
+    private var host: Host? { store.host(hostID) }
+    private var needsPassword: Bool {
+        guard let host else { return false }
+        return host.identityID == nil && !host.hasPassword
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(store.data.hosts) { h in
+                    Button {
+                        hostID = h.id
+                        error = nil
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(h.displayName).foregroundStyle(.primary)
+                                Text(h.destination).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if h.id == hostID { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                        }
+                    }
+                    .accessibilityIdentifier("install-\(h.displayName)")
+                }
+            } header: {
+                Text("Server")
+            } footer: {
+                Text("Tube logs in the way it does now and adds the key to ~/.ssh/authorized_keys.")
+            }
+            if needsPassword {
+                Section {
+                    SecureField("Password", text: $password)
+                        .textContentType(.password)
+                } footer: {
+                    Text("Used once to install the key. It isn’t saved.")
+                }
+            }
+            Section {
+                Toggle("Log In with This Key", isOn: $useForHost)
+            }
+            if let error { Text(error).foregroundStyle(.red).font(.callout) }
+        }
+        .navigationTitle("Install Key")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                if working {
+                    ProgressView()
+                } else {
+                    Button("Install") { install() }
+                        .disabled(host == nil || (needsPassword && password.isEmpty))
+                }
+            }
+        }
+    }
+
+    private func install() {
+        guard let host else { return }
+        working = true
+        error = nil
+        Task {
+            do {
+                try await store.install(identity: identity, on: host, password: password, useForHost: useForHost, trust: trust)
+                working = false
+                dismiss()
+            } catch {
+                working = false
+                self.error = "Couldn’t install the key on \(host.displayName): \(error)"
             }
         }
     }

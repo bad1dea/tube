@@ -74,4 +74,16 @@ extension SSHConnection {
         let buf = try await client.executeCommand(command)
         return String(buffer: buf)
     }
+
+    /// Appends `publicKeyLine` to ~/.ssh/authorized_keys unless it is already there.
+    /// Only POSIX sh, so it also works when the login shell is fish or similar
+    /// (the command goes through `sh -c`).
+    public func installPublicKey(_ publicKeyLine: String) async throws {
+        let line = publicKeyLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quoted = "'" + line.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let script = "umask 077; mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && "
+            + "(grep -qxF \(quoted) ~/.ssh/authorized_keys || echo \(quoted) >> ~/.ssh/authorized_keys)"
+        let shQuoted = "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        _ = try await run("sh -c " + shQuoted)
+    }
 }

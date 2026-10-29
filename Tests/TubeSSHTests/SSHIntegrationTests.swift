@@ -167,7 +167,11 @@ final class SSHIntegrationTests: XCTestCase {
         XCTAssertTrue(gen.privateKeyOpenSSH.hasPrefix("-----BEGIN OPENSSH PRIVATE KEY-----"))
         let trust = MemoryTrust(accept: true)
         let setup = try await SSHConnection.connect(chain: [target(.password("tester-pass"))], trust: trust)
-        _ = try await setup.run("echo '\(gen.publicKeyLine)' >> ~/.ssh/authorized_keys")
+        // Twice: the second install must not add a duplicate line.
+        try await setup.installPublicKey(gen.publicKeyLine)
+        try await setup.installPublicKey(gen.publicKeyLine)
+        let count = try await setup.run("grep -c gen-test ~/.ssh/authorized_keys")
+        XCTAssertEqual(count, "1\n")
         await setup.close()
         let conn = try await SSHConnection.connect(chain: [target(.privateKey(gen.privateKeyOpenSSH, passphrase: nil))], trust: trust)
         let ok = try await conn.run("echo ok")

@@ -209,6 +209,30 @@ final class AppStore: ObservableObject {
         return ident
     }
 
+    /// Logs in with the host's current credential (or `password`) and adds the
+    /// key to its authorized_keys. With `useForHost` the host logs in with the key from then on.
+    func install(identity: Identity, on host: Host, password: String?, useForHost: Bool, trust: HostKeyTrust) async throws {
+        let typed = password.flatMap { $0.isEmpty ? nil : [host.id: $0] } ?? [:]
+        let conn = try await SSHConnection.connect(chain: try chain(for: host, passwords: typed), trust: trust)
+        do {
+            try await conn.installPublicKey(identity.publicKey)
+        } catch {
+            await conn.close()
+            throw error
+        }
+        await conn.close()
+        if useForHost, var h = self.host(host.id) {
+            h.identityID = identity.id
+            upsert(h, password: nil)
+        }
+    }
+
+    func rename(identity id: UUID, to label: String) {
+        guard let i = data.identities.firstIndex(where: { $0.id == id }) else { return }
+        data.identities[i].label = label
+        data.identities[i].updatedAt = Date()
+    }
+
     func delete(identity id: UUID) {
         Keychain.remove(.privateKey(id))
         Keychain.remove(.keyPassphrase(id))

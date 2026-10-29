@@ -143,6 +143,7 @@ struct HostListView: View {
         }
         .sheet(item: $filesHost) { host in
             FilesView(host: host, existing: nil)
+                .hostKeyPrompts()
         }
         .sheet(item: $editing) { host in
             NavigationStack {
@@ -164,6 +165,7 @@ struct HostListView: View {
                 case .tunnels: TunnelsView()
                 }
             }
+            .hostKeyPrompts()
         }
     }
 

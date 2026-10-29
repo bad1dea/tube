@@ -176,7 +176,7 @@ struct RootView: View {
         }
         // A sheet cannot present from under the terminal's full-screen cover,
         // so while the cover is up (iPhone) the cover presents the question.
-        .sheet(item: hostKeyQuestion(shownHere: sizeClass == .regular || !sessions.terminalPresented)) { q in
+        .sheet(item: hostKeyQuestion(shownHere: (sizeClass == .regular || !sessions.terminalPresented) && trust.sheetPrompts == 0)) { q in
             hostKeySheet(q)
         }
     }
@@ -189,6 +189,27 @@ struct RootView: View {
     private func hostKeySheet(_ q: HostKeyQuestion) -> some View {
         HostKeyPrompt(question: q) { trust.respond($0) }
             .interactiveDismissDisabled()
+    }
+}
+
+extension View {
+    /// For sheets that can start a connection. Only the topmost presenter can
+    /// show a sheet, so while this sheet is up it asks the question instead of the root.
+    func hostKeyPrompts() -> some View { modifier(SheetHostKeyPrompt()) }
+}
+
+private struct SheetHostKeyPrompt: ViewModifier {
+    @EnvironmentObject var trust: HostKeyTrust
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: Binding(get: { trust.question },
+                                 set: { if $0 == nil { trust.respond(false) } })) { q in
+                HostKeyPrompt(question: q) { trust.respond($0) }
+                    .interactiveDismissDisabled()
+            }
+            .onAppear { trust.sheetPrompts += 1 }
+            .onDisappear { trust.sheetPrompts -= 1 }
     }
 }
 

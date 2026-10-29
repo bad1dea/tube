@@ -70,6 +70,37 @@ final class SessionWorkflowTests: XCTestCase {
         sleep(4)
     }
 
+    /// Generate a key, install it on the runner over the saved password, then
+    /// log in with it. The workflow checks sshd's log for "Accepted publickey".
+    func testKeyInstallAndLogin() throws {
+        XCTAssertTrue(app.navigationBars["Tube"].waitForExistence(timeout: 10))
+        let keysRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'SSH Keys'")).firstMatch
+        for _ in 0..<6 where !(keysRow.exists && keysRow.isHittable) { app.swipeUp() }
+        keysRow.tap()
+        tap("Add Key")
+        tap("Generate New Key")
+        tap("Generate")
+        let keyRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'tube@'")).firstMatch
+        XCTAssertTrue(keyRow.waitForExistence(timeout: 5), "generated key not listed")
+        keyRow.tap()
+        XCTAssertTrue(el("publicKey").waitForExistence(timeout: 5))
+        shot("k01-key")
+        tap("Install on a Server")
+        tap("install-runner")
+        tap("Install")
+        let trust = app.buttons["Trust"]
+        if trust.waitForExistence(timeout: 20) { trust.tap() }
+        let usedBy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Used by runner'")).firstMatch
+        XCTAssertTrue(usedBy.waitForExistence(timeout: 30), "key install did not finish")
+        shot("k02-installed")
+        app.navigationBars.buttons.firstMatch.tap()
+        tap("Done")
+
+        connect("runner,")
+        run("mkdir -p ~/c && touch ~/c/ok-key-login")
+        shot("k03-key-session")
+    }
+
     func testSessionWorkflows() throws {
         XCTAssertTrue(app.navigationBars["Tube"].waitForExistence(timeout: 10))
         connect("runner,")
