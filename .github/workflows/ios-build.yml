@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +54,11 @@ jobs:
           sudo dscl . -create /Users/$U NFSHomeDirectory /Users/$U
           sudo dscl . -passwd /Users/$U "$PW"
           sudo mkdir -p /Users/$U && sudo chown $U:staff /Users/$U
+          # Empty zshrc skips zsh's first-run wizard; Homebrew on PATH for tmux/screen.
+          printf 'PS1="%%n %%1~ %%# "\n' | sudo -u $U tee /Users/$U/.zshrc >/dev/null
+          brew install tmux screen >/dev/null 2>&1 || true
+          echo /opt/homebrew/bin | sudo tee /etc/paths.d/homebrew >/dev/null
+          sudo rm -rf /Users/$U/c
           sudo dseditgroup -o edit -a $U -t user com.apple.access_ssh 2>/dev/null || true
           echo "UITEST_USER=$U" >> "$GITHUB_ENV"
           echo "UITEST_PW=$PW" >> "$GITHUB_ENV"
@@ -76,10 +81,30 @@ jobs:
           export TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="${UITEST_USER:-runner}" TEST_RUNNER_TUBE_UITEST_PASSWORD="$UITEST_PW"
           xcodebuild test -project Tube.xcodeproj -scheme Tube -destination "id=$UDID" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
-            -test-timeouts-enabled YES -maximum-test-execution-time-allowance 600 \
+            -test-timeouts-enabled YES -maximum-test-execution-time-allowance 1500 \
             -skipPackagePluginValidation -skipMacroValidation \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO 2>&1 | tee uitest.log | grep -E "error:|Test Case|XCTAssert|failed|passed|TEST (SUCCEEDED|FAILED)" || true
           grep -q "TEST SUCCEEDED" uitest.log
+
+      - name: Check what the sessions did on the server
+        if: always()
+        run: |
+          d=/Users/${UITEST_USER:-tubetest}/c
+          fail=0
+          check() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; fail=1; fi; }
+          check "connect + typing"            "sudo test -f $d/ok-connect -a -f $d/ok-typed"
+          check "suggestion chip completes"   "sudo test -f $d/ok-chip-seed"
+          check "ctrl latch: ^C interrupts"   "sudo grep -qx 130 $d/ok-ctrl-c && ! sudo test -f $d/bad-not-interrupted"
+          check "tab completion"              "sudo test -f $d/ok-tab"
+          check "up arrow history"            "[ \"\$(sudo wc -l < $d/ok-arrow 2>/dev/null | tr -d ' ')\" = 2 ]"
+          check "vim insert + esc + :wq"      "sudo grep -q 'hello from vim' $d/ok-vim.txt"
+          check "tmux inside + ^B d detach"   "sudo test -f $d/ok-in-tmux && sudo grep -q tube $d/ok-tmux-ls"
+          check "screen inside + ^A d detach" "sudo test -f $d/ok-in-screen && sudo grep -q tube $d/ok-screen-ls"
+          check "panel snippet + keyboard"    "sudo test -s $d/ok-snippet-df"
+          check "two sessions, switch"        "sudo test -f $d/ok-session1 -a -f $d/ok-session2"
+          check "password prompt connects"    "sudo test -f $d/ok-password-prompt"
+          sudo ls -la $d || true
+          exit $fail
 
       - name: Export screenshots
         if: always()

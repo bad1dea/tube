@@ -32,6 +32,8 @@ enum UITestSeed {
                         favorite: true, lastConnected: Date().addingTimeInterval(-300))
         real.osID = nil
         hosts.append(real)
+        // Same server, no saved password: exercises the in-session prompt.
+        hosts.append(Host(label: "runner-nopw", hostname: real.hostname, port: real.port, username: real.username))
         s.data.hosts = hosts
         if let pw = env["TUBE_UITEST_PASSWORD"] { s.upsert(real, password: pw) }
         s.data.snippets = [
