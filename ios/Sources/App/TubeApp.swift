@@ -170,13 +170,25 @@ struct RootView: View {
                             .environmentObject(sessions)
                             .environmentObject(trust)
                             .environmentObject(sync)
+                            .sheet(item: hostKeyQuestion(shownHere: true)) { q in hostKeySheet(q) }
                     }
             }
         }
-        .sheet(item: $trust.question) { q in
-            HostKeyPrompt(question: q) { trust.respond($0) }
-                .interactiveDismissDisabled()
+        // A sheet cannot present from under the terminal's full-screen cover,
+        // so while the cover is up (iPhone) the cover presents the question.
+        .sheet(item: hostKeyQuestion(shownHere: sizeClass == .regular || !sessions.terminalPresented)) { q in
+            hostKeySheet(q)
         }
+    }
+
+    private func hostKeyQuestion(shownHere: Bool) -> Binding<HostKeyQuestion?> {
+        Binding(get: { shownHere ? trust.question : nil },
+                set: { if shownHere, $0 == nil { trust.respond(false) } })
+    }
+
+    private func hostKeySheet(_ q: HostKeyQuestion) -> some View {
+        HostKeyPrompt(question: q) { trust.respond($0) }
+            .interactiveDismissDisabled()
     }
 }
 
