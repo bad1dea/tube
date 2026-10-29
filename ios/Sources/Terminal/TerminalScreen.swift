@@ -54,8 +54,14 @@ struct TerminalScreen: View {
             }
         }
         .sheet(isPresented: $sessions.hostPickerPresented, onDismiss: {
-            if let h = pickedHost { pickedHost = nil; sessions.open(h) }
-            _ = sessions.active?.view.becomeFirstResponder()
+            // A new session gets focus from TerminalHostController once it has
+            // installed the key bar; focusing it here first shows SwiftTerm's own bar.
+            if let h = pickedHost {
+                pickedHost = nil
+                sessions.open(h)
+            } else {
+                _ = sessions.active?.view.becomeFirstResponder()
+            }
         }) {
             HostPicker { host in pickedHost = host }
                 .environmentObject(store)
