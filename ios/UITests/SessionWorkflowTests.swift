@@ -277,8 +277,12 @@ final class SessionWorkflowTests: XCTestCase {
         XCTAssertTrue(el("Escape").waitForExistence(timeout: 20), "terminal did not take the keyboard after the password prompt")
         sleep(4)
         run("cd ~/c && echo prompted > ok-password-prompt")
-        tap("Hosts")
+        // A logout closes the session quietly, even with a non-zero status.
+        run("false; exit", wait: 3)
+        if !app.navigationBars["Tube"].exists { tap("Hosts") }
         sleep(1)
+        XCTAssertFalse(app.buttons["Disconnect runner-nopw"].exists, "session stayed open after exit")
+        XCTAssertFalse(el("Last Connection Failed").exists, "exit shown as a failure")
         shot("w14-hosts")
 
         // Disconnect from the host list: one with its x, the rest with Disconnect All.

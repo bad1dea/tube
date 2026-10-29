@@ -66,6 +66,7 @@ final class SessionManager: ObservableObject {
 
     private func observe(_ s: TerminalSession) {
         let hostID = s.hostID
+        s.onExit = { [weak self, id = s.id] in self?.close(id) }
         stateWatchers[s.id] = s.$state.receive(on: RunLoop.main).sink { [weak self] state in
             switch state {
             case .connected: self?.failures[hostID] = nil

@@ -163,6 +163,14 @@ final class TerminalSession: ObservableObject, Identifiable {
 
     private func remoteClosed() {
         guard state == .connected else { return }
+        // A dropped network can also end the stream cleanly; only a shell that
+        // ended while the SSH connection is still up is a logout.
+        if shell?.exited == true, connection?.isConnected == true {
+            teardown()
+            state = .disconnected(nil)
+            onExit?()
+            return
+        }
         let reason = shell?.exitError.map { "\($0)" }
         teardown()
         state = .disconnected(reason)
@@ -187,6 +195,8 @@ final class TerminalSession: ObservableObject, Identifiable {
     /// What the user has typed on the current shell line, if it could be followed.
     @Published private(set) var typedLine: String?
     var onCommand: ((String) -> Void)?
+    /// The remote shell logged out (`exit`, ^D). The manager closes the session.
+    var onExit: (() -> Void)?
 
     /// Prompt text in front of the cursor when the current line started.
     private var linePrompt = ""

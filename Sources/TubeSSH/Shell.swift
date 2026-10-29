@@ -13,6 +13,8 @@ public final class ShellSession: @unchecked Sendable {
     private var task: Task<Void, Never>?
     private let lock = NSLock()
     public private(set) var exitError: Error?
+    /// Set when the remote shell ended on its own (`exit`, logout), whatever its status.
+    public private(set) var exited = false
 
     public init() {
         (output, outputContinuation) = AsyncStream<[UInt8]>.makeStream(bufferingPolicy: .unbounded)
@@ -40,9 +42,18 @@ public final class ShellSession: @unchecked Sendable {
                             cont.yield(Array(b.readableBytesView))
                         }
                     }
+                    self?.exited = true
                 }
             } catch {
-                self?.exitError = error
+                // Citadel ends the stream with CommandFailed when the shell exits
+                // non-zero (e.g. `exit` after a ^C), and closing a channel the
+                // server already closed throws too. Both are a normal logout.
+                // withPTY's cleanup close() replaces the CommandFailed with alreadyClosed.
+                if error is SSHClient.CommandFailed || (error as? ChannelError) == .alreadyClosed {
+                    self?.exited = true
+                } else if self?.exited != true {
+                    self?.exitError = error
+                }
                 started.continuation.finish(throwing: error)
             }
             started.continuation.finish()

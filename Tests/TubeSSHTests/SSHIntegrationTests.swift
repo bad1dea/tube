@@ -209,6 +209,22 @@ final class SSHIntegrationTests: XCTestCase {
         return (conn, shell, collector)
     }
 
+    /// `exit` is a logout, not a failure, whatever the last status was.
+    func testExitIsCleanLogout() async throws {
+        for line in ["exit\r", "false; exit 130\r"] {
+            let (conn, shell, out) = try await openShell()
+            try await shell.send(Array(line.utf8))
+            _ = out
+            for _ in 0..<50 where !shell.exited && shell.exitError == nil {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            XCTAssertTrue(shell.exited, line)
+            XCTAssertNil(shell.exitError, line)
+            XCTAssertTrue(conn.isConnected, line)
+            await conn.close()
+        }
+    }
+
     func testPTYTermAndResize() async throws {
         let (conn, shell, out) = try await openShell(cols: 100, rows: 30)
         try await shell.send(Array("echo T=$TERM; stty size\r".utf8))
