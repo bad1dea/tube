@@ -152,6 +152,7 @@ struct SyncSetupView: View {
     @State private var error: String?
     @State private var created: (RecoveryKey, String)?
     @State private var savedKey = false
+    @State private var scanning = false
 
     init(mode: SyncView.Mode, code: String = "") {
         self.mode = mode
@@ -182,6 +183,15 @@ struct SyncSetupView: View {
                     Section {
                         TextField("tube://pair?...", text: $code, axis: .vertical).font(.caption.monospaced())
                         Button("Paste") { code = UIPasteboard.general.string ?? "" }
+                        if QRScanner.isSupported {
+                            Button("Scan QR Code") {
+                                Task {
+                                    if await QRScanner.requestCamera() { scanning = true } else {
+                                        error = "Camera access is off. Allow it in Settings > Tube, or paste the code."
+                                    }
+                                }
+                            }
+                        }
                     } footer: {
                         Text("On a device that already syncs, open Sync and tap Show Pairing Code.")
                     }
@@ -200,6 +210,9 @@ struct SyncSetupView: View {
         .navigationTitle(mode == .create ? "New Vault" : mode == .join ? "Join" : "Recover")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(created != nil && !savedKey)
+        .fullScreenCover(isPresented: $scanning) {
+            QRScanSheet(prefix: "tube://pair", hint: "Point at the code under Sync > Show Pairing Code") { code = $0; error = nil }
+        }
         .toolbar {
             if created != nil {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.disabled(!savedKey) }

@@ -41,6 +41,8 @@
 		<key>UIColorName</key>
 		<string></string>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan a pairing QR code from another device that syncs. Nothing is recorded.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Tube with Face ID.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -55,7 +55,7 @@ workspace, React web app, test containers, CI.
 - [x] Swift client (5 live tests), web client (2 live tests), web<->Swift interop
 - [x] iOS sync UI: create, pair (QR + code), recover, devices, revoke
 - [x] docker compose with Caddy TLS
-- [ ] QR scanning on iOS (pairing code is pasted for now)
+- [x] QR scanning on iOS (in-app scanner; the Camera app also opens tube://pair links)
 
 ## M6 Web client and gateway — done, tested end to end
 
