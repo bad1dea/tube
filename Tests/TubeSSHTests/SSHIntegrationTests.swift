@@ -3,6 +3,9 @@ import Foundation
 import TubeCore
 import TermInput
 @testable import TubeSSH
+import Citadel
+import NIOSSH
+import Crypto
 
 // Runs against test/sshd (start with test/sshd/up.sh). Skipped unless
 // TUBE_SSH_TESTS=1 so `swift test` works without containers.
@@ -136,17 +139,20 @@ final class SSHIntegrationTests: XCTestCase {
         } catch {}
     }
 
-    /// Citadel 0.12 signs RSA auth with SHA-1 ("ssh-rsa"), which OpenSSH 8.8+
-    /// refuses by default. Keep this test so a fix (rsa-sha2-256) shows up.
-    func testRSAKeyAgainstModernOpenSSH() async throws {
-        let trust = MemoryTrust(accept: true)
-        do {
-            let conn = try await SSHConnection.connect(chain: [target(.privateKey(try key("client_rsa"), passphrase: nil))], trust: trust)
-            await conn.close()
-            print("RSA: accepted")
-        } catch {
-            print("RSA: refused (\(error))")
-        }
+    /// OpenSSH 8.8+ refuses ssh-rsa (SHA-1); this needs rsa-sha2-512/256.
+    func testRSAKeyAuthenticates() async throws {
+        let conn = try await SSHConnection.connect(chain: [target(.privateKey(try key("client_rsa"), passphrase: nil))], trust: MemoryTrust(accept: true))
+        let who = try await conn.run("whoami")
+        XCTAssertEqual(who, "tester\n")
+        await conn.close()
+    }
+
+    /// RFC 8332: the algorithm is rsa-sha2-*, the key blob inside stays ssh-rsa.
+    func testRSASHA2KeyBlob() throws {
+        let material = try RSAKeyMaterial(Insecure.RSA.PrivateKey(sshRsa: try key("client_rsa")))
+        let blob = try key("client_rsa.pub").split(separator: " ")[1]
+        XCTAssertEqual(String(openSSHPublicKey: NIOSSHPrivateKey(custom: RSASHA2PrivateKey<RSASHA512>(material)).publicKey), "rsa-sha2-512 \(blob)")
+        XCTAssertEqual(String(openSSHPublicKey: NIOSSHPrivateKey(custom: RSASHA2PrivateKey<RSASHA256>(material)).publicKey), "rsa-sha2-256 \(blob)")
     }
 
     func testImportedPublicKeyMatchesSSHKeygen() throws {

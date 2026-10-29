@@ -108,7 +108,7 @@ public enum SSHKeys {
                 case .ed25519:
                     return .ed25519(username: username, privateKey: try Curve25519.Signing.PrivateKey(sshEd25519: text, decryptionKey: decryption))
                 case .rsa:
-                    return .rsa(username: username, privateKey: try Insecure.RSA.PrivateKey(sshRsa: text, decryptionKey: decryption))
+                    return .custom(try RSAAuthenticationDelegate(username: username, key: Insecure.RSA.PrivateKey(sshRsa: text, decryptionKey: decryption)))
                 default:
                     throw SSHConnectError.unsupportedKey(type.description)
                 }

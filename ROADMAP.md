@@ -1,6 +1,6 @@
 # Roadmap
 
-Status as of 2026-10-28. "Tested" means automated tests run on Linux or in
+Status as of 2026-10-29. "Tested" means automated tests run on Linux or in
 CI; "compiles" means the iOS target builds on the macOS runner but has not
 been run on a device or simulator.
 
@@ -25,7 +25,7 @@ workspace, React web app, test containers, CI.
 - [x] Host list: search, groups, tags, favorites, recents, notes, per-host terminal settings
 - [x] ssh_config import/export with ProxyJump (tested)
 - [x] Multiple sessions, tab strip, reconnect
-- [ ] RSA user auth on iOS (Citadel uses ssh-rsa/SHA-1; needs rsa-sha2-512 signer)
+- [x] RSA user auth: rsa-sha2-512, then rsa-sha2-256, then ssh-rsa (tested vs OpenSSH)
 - [ ] Run on a real device
 
 ## M3 iOS keyboard — compiles, encoding tested
@@ -89,14 +89,13 @@ From the first TestFlight build (0.1 build 3) on a real iPhone:
 - [x] Background: background task, opt-in location keep-alive, reconnect on return
 - [x] Live Activity on the lock screen / Dynamic Island with open sessions
 - [x] Simulator UI test that walks these flows and exports screenshots (ios-build.yml)
-- [ ] RSA user keys on iOS (rsa-sha2 signer)
+- [x] RSA user keys on iOS (rsa-sha2 signer)
 - [ ] mosh-style roaming / session resume
 
-## M9 TestFlight — pipeline ready, blocked on Apple setup
+## M9 TestFlight — done
 
-Workflows and fastlane lanes are in place. Needs the App ID, App Store
-Connect record, provisioning profile and repo secrets listed in
-docs/release.md. No build has been uploaded.
+`testflight.yml` builds, signs and uploads to App Store Connect (first
+uploads 2026-10-28/29). Secrets and profile setup are in docs/release.md.
 
 ## M10 Desktop — not started
 

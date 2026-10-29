@@ -63,7 +63,5 @@ would defeat this; the CSP in web/Caddyfile allows only same-origin scripts.
 
 ## Things not done yet
 
-- RSA user keys on iOS: Citadel signs with `ssh-rsa` (SHA-1), which
-  OpenSSH 8.8+ refuses. Ed25519 works. The web client signs RSA correctly.
 - No certificate pinning of the sync server beyond normal TLS validation.
 - No independent audit.
