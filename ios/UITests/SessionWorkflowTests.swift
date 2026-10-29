@@ -281,7 +281,9 @@ final class SessionWorkflowTests: XCTestCase {
         run("cd ~/c && echo prompted > ok-password-prompt")
         // A logout closes the session quietly, even with a non-zero status.
         run("false; exit", wait: 3)
-        if !app.navigationBars["Tube"].exists { tap("Hosts") }
+        // Another session is open, so the terminal stays up (the host list's
+        // nav bar is still in the tree under the cover, so check the key bar).
+        if el("Escape").exists { tap("Hosts") }
         sleep(1)
         XCTAssertFalse(app.buttons["Disconnect runner-nopw"].exists, "session stayed open after exit")
         XCTAssertFalse(el("Last Connection Failed").exists, "exit shown as a failure")
