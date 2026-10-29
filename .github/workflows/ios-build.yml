@@ -59,6 +59,9 @@ jobs:
           echo "UITEST_PW=$PW" >> "$GITHUB_ENV"
           sleep 2
           nc -z 127.0.0.1 22 && echo "sshd listening" || echo "sshd not listening; terminal steps will see a failed connection"
+          # macOS sshd makes its host keys on the first connection; do it now so
+          # the app's handshake does not time out.
+          ssh-keyscan -T 60 127.0.0.1 2>/dev/null | head -1 | cut -c1-40 || true
 
       - name: UI tests on simulator
         working-directory: ios
@@ -81,7 +84,9 @@ jobs:
       - name: Export screenshots
         if: always()
         run: |
-          mkdir -p shots
+          mkdir -p shots crashes
+          cp ~/Library/Logs/DiagnosticReports/Tube*.ips crashes/ 2>/dev/null || true
+          ls crashes
           [ -d "$RUNNER_TEMP/ui.xcresult" ] && xcrun xcresulttool export attachments --path "$RUNNER_TEMP/ui.xcresult" --output-path shots || true
           ls shots | head -40
 
@@ -92,6 +97,7 @@ jobs:
           path: |
             shots
             ios/uitest.log
+            crashes
           if-no-files-found: ignore
 
       - name: TubeKit tests on macOS
