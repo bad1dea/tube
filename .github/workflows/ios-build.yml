@@ -42,13 +42,15 @@ jobs:
         run: |
           # The UI test logs in to this Mac over SSH as a throwaway user; the
           # runner account's own password cannot be reset without the old one.
+          # PerSourcePenalties no: keyscans and the host-key prompt open connections
+          # that never authenticate; OpenSSH 9.8+ would stall the next connect.
           # Own sshd on 2223, started directly: the launchd-managed system sshd
           # accepts TCP but can take minutes to answer the first handshakes.
           sudo mkdir -p /tmp/tube-sshd && sudo ssh-keygen -q -t ed25519 -N '' -f /tmp/tube-sshd/host_ed25519
           printf '%s\n' 'Port 2223' 'ListenAddress 127.0.0.1' 'HostKey /tmp/tube-sshd/host_ed25519' \
             'PasswordAuthentication yes' 'KbdInteractiveAuthentication yes' 'UsePAM yes' 'UseDNS no' \
             'PidFile /tmp/tube-sshd/sshd.pid' 'Subsystem sftp internal-sftp' 'AllowTcpForwarding yes' \
-            'MaxStartups 200' 'LogLevel VERBOSE' | sudo tee /tmp/tube-sshd/sshd_config >/dev/null
+            'MaxStartups 200' 'PerSourcePenalties no' 'LogLevel VERBOSE' | sudo tee /tmp/tube-sshd/sshd_config >/dev/null
           U=tubetest
           PW="ui-$(openssl rand -hex 8)"
           echo "::add-mask::$PW"
