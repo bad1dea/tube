@@ -33,6 +33,9 @@ final class KeyboardModel: ObservableObject {
 
     weak var terminal: TubeTerminalView?
     var onToggleInputMode: (() -> Void)?
+    var onDismissHint: (() -> Void)?
+
+    func dismissPadHint() { onDismissHint?() }
     var clicks = true
 
     func encodeLatched(text: String, modes: TerminalModes) -> [UInt8] {

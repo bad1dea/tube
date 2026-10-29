@@ -16,6 +16,10 @@ final class TubeTerminalView: TerminalView {
         accessibilityIdentifier = "terminal"
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:)))
         addGestureRecognizer(pinch)
+        swipe.addTarget(self, action: #selector(swiped(_:)))
+        addGestureRecognizer(swipe)
+        // The native scroll only runs when the swipe declines the touch.
+        panGestureRecognizer.require(toFail: swipe)
         autocorrectionType = .no
         autocapitalizationType = .none
         smartQuotesType = .no
@@ -57,6 +61,72 @@ final class TubeTerminalView: TerminalView {
             return
         }
         super.pressesBegan(presses, with: event)
+    }
+
+    // MARK: Swipes
+
+    /// One-finger drags that the scroll view cannot use:
+    ///   left/right anywhere        → ← / → (move along the command line)
+    ///   up/down in full-screen apps → wheel events if the app enabled mouse
+    ///                                reporting (tmux `mouse on`, vim
+    ///                                `mouse=a`), otherwise ↑ / ↓
+    /// Up/down at a normal prompt stays a native scroll through scrollback.
+    let swipe = UIPanGestureRecognizer()
+    private var swipeSent = CGPoint.zero
+
+    private var cellSize: CGSize {
+        let w = ("W" as NSString).size(withAttributes: [.font: font]).width
+        return CGSize(width: max(w, 4), height: max(font.lineHeight, 8))
+    }
+
+    private var verticalGoesToApp: Bool {
+        let t = getTerminal()
+        return t.isCurrentBufferAlternate || t.mouseMode != .off
+    }
+
+    @objc private func swiped(_ g: UIPanGestureRecognizer) {
+        switch g.state {
+        case .began:
+            swipeSent = .zero
+        case .changed:
+            let t = g.translation(in: self)
+            let cell = cellSize
+            let horizontal = abs(t.x) > abs(t.y)
+            if horizontal {
+                let steps = Int((t.x / cell.width).rounded(.towardZero)) - Int(swipeSent.x)
+                for _ in 0..<abs(steps) { send(KeyEncoder.encode(steps > 0 ? .right : .left, modes: modes)) }
+                swipeSent.x += CGFloat(steps)
+            } else {
+                // Finger down = earlier content = wheel/arrow up.
+                let steps = Int((t.y / cell.height).rounded(.towardZero)) - Int(swipeSent.y)
+                for _ in 0..<abs(steps) { sendVertical(up: steps > 0, at: g.location(in: self)) }
+                swipeSent.y += CGFloat(steps)
+            }
+            if (t.x != 0 || t.y != 0) { keyboard?.dismissPadHint() }
+        default:
+            break
+        }
+    }
+
+    // UIView asks this for every recognizer on the view, including the swipe.
+    override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard g === swipe else { return super.gestureRecognizerShouldBegin(g) }
+        let v = swipe.velocity(in: self)
+        if abs(v.x) > abs(v.y) { return true }
+        return verticalGoesToApp
+    }
+
+    private func sendVertical(up: Bool, at point: CGPoint) {
+        let t = getTerminal()
+        if t.mouseMode != .off {
+            let cell = cellSize
+            let col = max(0, min(t.cols - 1, Int(point.x / cell.width)))
+            let row = max(0, min(t.rows - 1, Int((point.y - contentOffset.y) / cell.height)))
+            let flags = t.encodeButton(button: up ? 4 : 5, release: false, shift: false, meta: false, control: false)
+            t.sendEvent(buttonFlags: flags, x: col, y: row)
+        } else {
+            send(KeyEncoder.encode(up ? .up : .down, modes: modes))
+        }
     }
 
     @objc private func pinched(_ g: UIPinchGestureRecognizer) {

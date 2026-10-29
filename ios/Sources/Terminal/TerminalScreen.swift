@@ -268,9 +268,47 @@ final class TerminalHostController: UIViewController {
         tv.inputAccessoryView = accessory
         tv.inputView = sessions.keyboard.panelVisible ? panel : nil
         installPadGesture(on: tv)
+        showGestureHintIfNeeded()
         if wasFirstResponder && view.window != nil {
             _ = tv.becomeFirstResponder()
         }
+    }
+
+    // MARK: Gesture hint
+
+    private var hint: UILabel?
+
+    /// The gestures are invisible; say what they do for the first few sessions.
+    private func showGestureHintIfNeeded() {
+        let key = "tube.gestureHintCount"
+        let shown = UserDefaults.standard.integer(forKey: key)
+        guard shown < 3, hint == nil else { return }
+        UserDefaults.standard.set(shown + 1, forKey: key)
+        let l = PaddedLabel()
+        l.text = "Drag ← → to move the cursor · hold for the arrow pad"
+        l.font = .preferredFont(forTextStyle: .footnote)
+        l.textColor = .label
+        l.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.95)
+        l.layer.cornerRadius = 8
+        l.layer.masksToBounds = true
+        l.numberOfLines = 0
+        l.textAlignment = .center
+        l.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(l)
+        NSLayoutConstraint.activate([
+            l.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            l.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 48),
+            l.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -32),
+        ])
+        hint = l
+        sessions.keyboard.onDismissHint = { [weak self] in self?.dismissHint() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in self?.dismissHint() }
+    }
+
+    private func dismissHint() {
+        guard let l = hint else { return }
+        hint = nil
+        UIView.animate(withDuration: 0.2, animations: { l.alpha = 0 }) { _ in l.removeFromSuperview() }
     }
 
     // MARK: Long-press pad
@@ -282,7 +320,7 @@ final class TerminalHostController: UIViewController {
     private func installPadGesture(on tv: TubeTerminalView) {
         guard !(tv.gestureRecognizers ?? []).contains(where: { $0 is PadPress }) else { return }
         let press = PadPress(target: self, action: #selector(padPressed(_:)))
-        press.minimumPressDuration = 0.35
+        press.minimumPressDuration = 0.3
         tv.addGestureRecognizer(press)
         // SwiftTerm's own long press opens an edit menu; the pad carries the
         // same copy/paste, so it takes precedence.
@@ -296,6 +334,7 @@ final class TerminalHostController: UIViewController {
         let p = g.location(in: view)
         switch g.state {
         case .began:
+            dismissHint()
             showPad(at: p, for: tv)
         case .changed:
             pad?.drive(CGVector(dx: p.x - padOrigin.x, dy: p.y - padOrigin.y))
@@ -367,6 +406,14 @@ final class TerminalHostController: UIViewController {
     @objc private func fontDown() { sessions.active?.setFontSize(max(8, (current?.font.pointSize ?? 13) - 1)) }
     @objc private func selectIndex(_ cmd: UIKeyCommand) {
         if let s = cmd.input, let n = Int(s) { sessions.select(index: n - 1) }
+    }
+}
+
+final class PaddedLabel: UILabel {
+    override func drawText(in rect: CGRect) { super.drawText(in: rect.insetBy(dx: 12, dy: 8)) }
+    override var intrinsicContentSize: CGSize {
+        let s = super.intrinsicContentSize
+        return CGSize(width: s.width + 24, height: s.height + 16)
     }
 }
 

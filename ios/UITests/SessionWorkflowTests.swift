@@ -109,6 +109,30 @@ final class SessionWorkflowTests: XCTestCase {
         run("")
         shot("w03-shell")
 
+        // Drags on the terminal. cat in canonical mode stores the escape
+        // sequences it receives, which the workflow then checks.
+        let term = el("terminal")
+        func drag(_ from: CGVector, _ to: CGVector) {
+            term.coordinate(withNormalizedOffset: from)
+                .press(forDuration: 0.05, thenDragTo: term.coordinate(withNormalizedOffset: to))
+            sleep(1)
+        }
+        run("cat > ok-swipe-keys", wait: 1)
+        drag(CGVector(dx: 0.8, dy: 0.35), CGVector(dx: 0.2, dy: 0.35))    // ← arrows
+        run("")
+        tap("Control")
+        app.typeText("d")
+        sleep(1)
+        // With mouse reporting on, a vertical drag becomes wheel events.
+        run("printf '\\033[?1000h\\033[?1006h'; cat > ok-wheel", wait: 1)
+        drag(CGVector(dx: 0.5, dy: 0.25), CGVector(dx: 0.5, dy: 0.6))     // finger down = wheel up
+        run("")
+        tap("Control")
+        app.typeText("d")
+        sleep(1)
+        run("printf '\\033[?1000l\\033[?1006l'")
+        shot("w03b-swipes")
+
         // vim: insert mode, Escape key, :wq.
         run("vim -u NONE -N ok-vim.txt", wait: 3)
         app.typeText("ihello from vim")

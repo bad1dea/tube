@@ -104,6 +104,8 @@ jobs:
           check "ctrl latch: ^C interrupts"   "sudo grep -qx 130 $d/ok-ctrl-c && ! sudo test -f $d/bad-not-interrupted"
           check "tab completion"              "sudo test -f $d/ok-tab"
           check "up arrow history"            "[ \"\$(sudo wc -l < $d/ok-arrow 2>/dev/null | tr -d ' ')\" = 2 ]"
+          check "drag left = arrow keys"      "sudo grep -q \$'\\e\\[D' $d/ok-swipe-keys"
+          check "drag down = wheel (mouse on)" "sudo grep -q \$'\\e\\[<64;' $d/ok-wheel"
           check "vim insert + esc + :wq"      "sudo grep -q 'hello from vim' $d/ok-vim.txt"
           check "tmux inside + ^B d detach"   "sudo test -f $d/ok-in-tmux && sudo grep -q tube $d/ok-tmux-ls"
           check "screen inside + ^A d detach" "sudo test -f $d/ok-in-screen && sudo grep -q tube $d/ok-screen-ls"
