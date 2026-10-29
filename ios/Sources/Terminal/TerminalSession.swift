@@ -188,12 +188,18 @@ final class TerminalSession: ObservableObject, Identifiable {
     @Published private(set) var typedLine: String?
     var onCommand: ((String) -> Void)?
 
+    /// Prompt text in front of the cursor when the current line started.
+    private var linePrompt = ""
+
     private func trackLine(_ bytes: [UInt8]) {
-        let echoed = cursorLine
+        if tracker.known && tracker.text.isEmpty {
+            linePrompt = cursorLine
+        }
         if let line = tracker.feed(bytes) {
-            // Only lines that were echoed count: password prompts do not echo,
-            // so a typed password is never recorded.
-            if !view.getTerminal().isCurrentBufferAlternate && echoed.hasSuffix(line.trimmingCharacters(in: .whitespaces)) {
+            // Recorded only when typed at a shell prompt, judged from the prompt
+            // before the first key; a password prompt never qualifies. (Waiting
+            // for the echo was unreliable: fast input sends Return first.)
+            if !view.getTerminal().isCurrentBufferAlternate && ShellPrompt.isCommandPrompt(linePrompt) {
                 onCommand?(line)
             }
         }

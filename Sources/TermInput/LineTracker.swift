@@ -123,3 +123,21 @@ public struct CommandSuggester: Sendable {
         return Array(out.prefix(limit))
     }
 }
+
+/// Decides from the prompt text in front of the cursor, captured before the
+/// first key of a line, whether the line is a shell command worth keeping.
+/// Password prompts ("[sudo] password for x:", "Enter passphrase for key:")
+/// end in a colon; shell prompts end in a prompt character.
+public enum ShellPrompt {
+    static let endings: Set<Character> = ["$", "#", "%", ">", "❯", "➜", "λ", "»", "]"]
+
+    public static func isCommandPrompt(_ line: String) -> Bool {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard let last = t.last else { return false }
+        let lower = t.lowercased()
+        if ["password", "passphrase", "passcode", "pin:", "verification code", "otp"].contains(where: lower.contains) {
+            return false
+        }
+        return endings.contains(last)
+    }
+}

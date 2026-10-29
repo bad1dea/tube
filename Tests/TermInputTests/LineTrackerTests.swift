@@ -64,3 +64,15 @@ final class CommandSuggesterTests: XCTestCase {
         XCTAssertEqual(s.suggestions(for: "ssh ", now: now).first, "ssh new-box")
     }
 }
+
+final class ShellPromptTests: XCTestCase {
+    func testPrompts() {
+        for p in ["khuong@leela:~$ ", "root@host:/etc# ", "tubetest c % ", "❯ ", "➜  tube git:(main) ❯", "[khuong@amy ~]$", "PS C:\\> "] {
+            XCTAssertTrue(ShellPrompt.isCommandPrompt(p), p)
+        }
+        for p in ["[sudo] password for khuong: ", "Password:", "Enter passphrase for key '/home/k/.ssh/id_ed25519': ",
+                  "Verification code: ", "", "Are you sure (yes/no)? "] {
+            XCTAssertFalse(ShellPrompt.isCommandPrompt(p), p)
+        }
+    }
+}
