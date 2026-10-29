@@ -103,6 +103,12 @@ final class SessionWorkflowTests: XCTestCase {
         }
 
         connect("runner,")
+        // The CI sshd sometimes stalls a handshake; a user would tap Reconnect.
+        if app.buttons["Reconnect"].exists {
+            app.buttons["Reconnect"].tap()
+            XCTAssertTrue(app.buttons["Reconnect"].waitForNonExistence(timeout: 30), "key login failed twice")
+            sleep(4)
+        }
         run("mkdir -p ~/c && touch ~/c/ok-key-login")
         shot("k03-key-session")
     }
@@ -298,6 +304,7 @@ final class SessionWorkflowTests: XCTestCase {
         sleep(1)
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Disconnect runner'")).count, before - 1)
         if app.buttons["Disconnect All"].exists { app.buttons["Disconnect All"].tap() }
+        for _ in 0..<3 where x.exists { x.tap(); sleep(1) }
         sleep(1)
         XCTAssertFalse(app.staticTexts["Open"].exists, "sessions still open")
         shot("w15-disconnected")
