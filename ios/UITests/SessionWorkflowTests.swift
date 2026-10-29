@@ -176,9 +176,13 @@ final class SessionWorkflowTests: XCTestCase {
 
         // Second session to the same host, then switch between the two.
         tap("New session")
-        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'runner,'")).firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 5))
-        picker.tap()
+        // The host list behind the sheet has the same row; tap the sheet's.
+        let rows = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'runner,'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
+        sleep(1)
+        let picker = rows.allElementsBoundByIndex.first { $0.isHittable }
+        XCTAssertNotNil(picker, "no tappable host in the picker")
+        picker?.tap()
         XCTAssertTrue(el("Session runner 2").waitForExistence(timeout: 20), "second session not labelled")
         sleep(4)
         run("cd ~/c && echo two > ok-session2")
