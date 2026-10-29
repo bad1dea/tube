@@ -50,6 +50,8 @@ final class SessionWorkflowTests: XCTestCase {
 
     func connect(_ prefix: String) {
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+        // Lists only create rows that are on screen.
+        for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp() }
         XCTAssertTrue(row.waitForExistence(timeout: 10), "no host row \(prefix)")
         row.tap()
         let trust = app.buttons["Trust"]
