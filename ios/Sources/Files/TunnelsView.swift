@@ -12,8 +12,29 @@ final class TunnelManager: ObservableObject {
     private var handles: [UUID: PortForwardHandle] = [:]
     private var connections: [UUID: SSHConnection] = [:]      // host id -> connection
     private var hostOf: [UUID: UUID] = [:]                    // forward id -> host id
+    private(set) var pendingPasswordHost: UUID?
+    private var passwords: [UUID: String] = [:]
 
-    func start(_ f: PortForward, store: AppStore, trust: HostKeyTrust) async {
+    /// Retry the waiting forward with one more typed password (a jump host may ask next).
+    func supplyPassword(_ password: String, store: AppStore, trust: HostKeyTrust) async {
+        guard let f = needsPassword, let id = pendingPasswordHost else { return }
+        needsPassword = nil
+        var all = passwords
+        all[id] = password
+        await start(f, store: store, trust: trust, passwords: all)
+    }
+
+    /// After editing a running forward: stop it and start it with the new settings.
+    func restartIfRunning(_ f: PortForward, store: AppStore, trust: HostKeyTrust) async {
+        guard running[f.id] != nil else { return }
+        await stop(f.id)
+        await start(f, store: store, trust: trust)
+    }
+
+    /// A forward waiting for a password (host has none saved); the view asks.
+    @Published var needsPassword: PortForward?
+
+    func start(_ f: PortForward, store: AppStore, trust: HostKeyTrust, passwords: [UUID: String] = [:]) async {
         guard let host = store.host(f.hostID) else { return }
         errors[f.id] = nil
         do {
@@ -21,7 +42,7 @@ final class TunnelManager: ObservableObject {
             if let c = connections[host.id], c.isConnected {
                 conn = c
             } else {
-                conn = try await SSHConnection.connect(chain: try store.chain(for: host), trust: trust)
+                conn = try await SSHConnection.connect(chain: try store.chain(for: host, passwords: passwords), trust: trust)
                 connections[host.id] = conn
             }
             let h: PortForwardHandle
@@ -36,8 +57,10 @@ final class TunnelManager: ObservableObject {
             handles[f.id] = h
             hostOf[f.id] = host.id
             running[f.id] = h.boundPort
-        } catch ChainError.noCredential(_, let name) {
-            errors[f.id] = "No password or key saved for \(name). Save a password in the host’s settings or pick a key."
+        } catch ChainError.noCredential(let id, _) {
+            pendingPasswordHost = id
+            needsPassword = f
+            self.passwords = passwords
         } catch {
             errors[f.id] = SSHErrorText.describe(error, target: host.destination)
         }
@@ -82,6 +105,7 @@ struct TunnelsView: View {
     @EnvironmentObject var tunnels: TunnelManager
     @Environment(\.dismiss) private var dismiss
     @State private var editing: PortForward?
+    @State private var password = ""
 
     var body: some View {
         List {
@@ -133,6 +157,18 @@ struct TunnelsView: View {
             }
         }
         .sheet(item: $editing) { f in NavigationStack { TunnelEditView(forward: f) } }
+        .alert("Password Needed", isPresented: Binding(get: { tunnels.needsPassword != nil },
+                                                      set: { if !$0 { tunnels.needsPassword = nil } })) {
+            SecureField("Password", text: $password)
+            Button("Connect") {
+                let pw = password
+                password = ""
+                Task { await tunnels.supplyPassword(pw, store: store, trust: trust) }
+            }
+            Button("Cancel", role: .cancel) { password = "" }
+        } message: {
+            Text("No password is saved for \(tunnels.pendingPasswordHost.flatMap { store.host($0)?.destination } ?? "this host"). It’s used for this tunnel only and isn’t saved.")
+        }
     }
 
     private func summary(_ f: PortForward) -> String {
@@ -147,6 +183,8 @@ struct TunnelsView: View {
 
 struct TunnelEditView: View {
     @EnvironmentObject var store: AppStore
+    @EnvironmentObject var trust: HostKeyTrust
+    @EnvironmentObject var tunnels: TunnelManager
     @Environment(\.dismiss) private var dismiss
     @State var forward: PortForward
 
@@ -183,6 +221,8 @@ struct TunnelEditView: View {
                     forward.updatedAt = Date()
                     if let i = store.data.forwards.firstIndex(where: { $0.id == forward.id }) {
                         store.data.forwards[i] = forward
+                        let f = forward
+                        Task { await tunnels.restartIfRunning(f, store: store, trust: trust) }
                     } else {
                         store.data.forwards.append(forward)
                     }

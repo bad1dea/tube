@@ -124,7 +124,7 @@ struct SSHConfigView: View {
             } header: {
                 Text("Import SSH Config")
             } footer: {
-                Text("Brings in Host, HostName, User, Port and ProxyJump. Keys named by IdentityFile need to be imported in SSH Keys.")
+                Text("Brings in Host, HostName, User, Port and ProxyJump. Hosts you already have are skipped. Keys named by IdentityFile need to be imported in SSH Keys.")
             }
             if !parsed.isEmpty {
                 Section(parsed.count == 1 ? "1 Host" : "\(parsed.count) Hosts") {
@@ -137,15 +137,30 @@ struct SSHConfigView: View {
                     }
                     Button(parsed.count == 1 ? "Import 1 Host" : "Import \(parsed.count) Hosts") {
                         let hosts = SSHConfig.importHosts(parsed, defaultUser: "root")
-                        for h in hosts { store.upsert(h, password: nil) }
-                        result = hosts.count == 1 ? "Imported 1 host" : "Imported \(hosts.count) hosts"
+                        // Same address already saved: keep it (and its password), point jumps at it.
+                        var existing: [UUID: UUID] = [:]
+                        for h in hosts {
+                            if let e = store.data.hosts.first(where: {
+                                $0.hostname.caseInsensitiveCompare(h.hostname) == .orderedSame && $0.port == h.port && $0.username == h.username
+                            }) { existing[h.id] = e.id }
+                        }
+                        let added = hosts.filter { existing[$0.id] == nil }
+                        for var h in added {
+                            h.jumpHostIDs = h.jumpHostIDs.map { existing[$0] ?? $0 }
+                            store.upsert(h, password: nil)
+                        }
+                        result = (added.count == 1 ? "Imported 1 host" : "Imported \(added.count) hosts")
+                            + (existing.isEmpty ? "" : ", skipped \(existing.count) already saved")
                         text = ""
                     }
                 }
             }
             if let result { Text(result) }
             Section("Export") {
-                ShareLink(item: SSHConfig.export(store.data.hosts)) {
+                ShareLink(item: SSHConfig.export(store.data.hosts) { id in
+                    // Where the key would live on a computer; export it from SSH Keys.
+                    store.data.identities.first { $0.id == id }.map { "~/.ssh/" + $0.label.replacingOccurrences(of: " ", with: "_") }
+                }) {
                     Label("Export Hosts as SSH Config", systemImage: "square.and.arrow.up")
                 }
             }

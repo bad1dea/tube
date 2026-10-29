@@ -9,6 +9,7 @@ struct HostEditView: View {
     @State private var passwordChanged = false
     @State private var tagText = ""
     @State private var addingJump = false
+    @State private var pendingGroup: HostGroup?
     @State private var newGroup = ""
     @State private var overrideTerminal = false
     let saveTitle: String
@@ -88,17 +89,21 @@ struct HostEditView: View {
                 Toggle("Favorite", isOn: $host.favorite)
                 Picker("Group", selection: $host.groupID) {
                     Text("None").tag(UUID?.none)
-                    ForEach(store.data.groups) { g in Text(g.name).tag(Optional(g.id)) }
+                    ForEach(store.data.groups + (pendingGroup.map { [$0] } ?? [])) { g in Text(g.name).tag(Optional(g.id)) }
                 }
                 HStack {
                     TextField("New Group", text: $newGroup)
                     Button("Add") {
+                        // Saved with the host, so Cancel doesn't leave an empty group behind.
                         let g = HostGroup(name: newGroup.trimmingCharacters(in: .whitespaces))
-                        store.data.groups.append(g)
+                        pendingGroup = g
                         host.groupID = g.id
                         newGroup = ""
                     }
                     .disabled(newGroup.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if !store.data.groups.isEmpty {
+                    NavigationLink("Edit Groups") { GroupsView() }
                 }
                 TextField("Tags, separated by spaces", text: $tagText)
                     .textInputAutocapitalization(.never)
@@ -171,6 +176,7 @@ struct HostEditView: View {
     }
 
     private func save() {
+        if let g = pendingGroup, host.groupID == g.id { store.data.groups.append(g) }
         host.hostname = host.hostname.trimmingCharacters(in: .whitespaces)
         host.tags = tagText.split(separator: " ").map(String.init)
         if !overrideTerminal { host.terminal = nil }
@@ -181,5 +187,54 @@ struct HostEditView: View {
         let saved = store.host(host.id) ?? host
         dismiss()
         onSave?(saved)
+    }
+}
+
+struct GroupsView: View {
+    @EnvironmentObject var store: AppStore
+    @State private var renaming: HostGroup?
+    @State private var name = ""
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(store.data.groups) { g in
+                    Button {
+                        renaming = g
+                        name = g.name
+                    } label: {
+                        LabeledContent(g.name) {
+                            let n = store.data.hosts.filter { $0.groupID == g.id }.count
+                            Text(n == 1 ? "1 host" : "\(n) hosts")
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .onDelete { idx in
+                    let ids = Set(idx.map { store.data.groups[$0].id })
+                    for i in store.data.hosts.indices where store.data.hosts[i].groupID.map(ids.contains) == true {
+                        store.data.hosts[i].groupID = nil
+                        store.data.hosts[i].updatedAt = Date()
+                    }
+                    store.data.groups.remove(atOffsets: idx)
+                }
+            } footer: {
+                Text("Tap a group to rename it. Deleting a group keeps its hosts.")
+            }
+        }
+        .navigationTitle("Groups")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { EditButton() }
+        .alert("Rename Group", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Name", text: $name)
+            Button("Save") {
+                if let g = renaming, let i = store.data.groups.firstIndex(where: { $0.id == g.id }),
+                   !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                    store.data.groups[i].name = name.trimmingCharacters(in: .whitespaces)
+                    store.data.groups[i].updatedAt = Date()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 }
