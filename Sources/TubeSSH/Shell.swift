@@ -86,6 +86,26 @@ extension SSHConnection {
         return String(buffer: buf)
     }
 
+    /// Round trip on the connection: runs `:` and waits up to `timeout`.
+    /// NIOSSH has no public keepalive request, and a dead TCP connection
+    /// (Wi-Fi gone, NAT expired) otherwise only fails after minutes.
+    public func isResponsive(timeout: Double = 10) async -> Bool {
+        guard client.isConnected else { return false }
+        // Not a task group: it waits for every child, and a request on a dead
+        // connection doesn't finish when cancelled.
+        let answer = AsyncStream<Bool>.makeStream()
+        Task { answer.continuation.yield((try? await self.run(":")) != nil) }
+        Task {
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1e9))
+            answer.continuation.yield(false)
+        }
+        for await ok in answer.stream {
+            answer.continuation.finish()
+            return ok
+        }
+        return false
+    }
+
     /// Appends `publicKeyLine` to ~/.ssh/authorized_keys unless it is already there.
     /// Only POSIX sh, so it also works when the login shell is fish or similar
     /// (the command goes through `sh -c`).

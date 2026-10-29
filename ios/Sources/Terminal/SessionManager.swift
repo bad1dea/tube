@@ -2,6 +2,7 @@ import UIKit
 import SwiftUI
 import LocalAuthentication
 import Combine
+import Network
 import TubeCore
 import TermInput
 
@@ -43,6 +44,16 @@ final class SessionManager: ObservableObject {
     init(store: AppStore, trust: HostKeyTrust) {
         self.store = store
         self.trust = trust
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let key = path.availableInterfaces.map(\.name).joined(separator: ",") + "\(path.status)"
+            Task { @MainActor in
+                guard let self else { return }
+                defer { self.lastPath = key }
+                // The first update is the current state, not a change.
+                if self.lastPath != nil, self.lastPath != key, path.status == .satisfied { self.networkChanged() }
+            }
+        }
+        pathMonitor.start(queue: .main)
         keyboard.clicks = store.data.settings.keyClicks
         keyboard.panelVisible = store.data.settings.showKeyPanelByDefault
         // objectWillChange fires before the change lands; read on the next turn.
@@ -52,6 +63,8 @@ final class SessionManager: ObservableObject {
     }
 
     var active: TerminalSession? { sessions.first { $0.id == activeID } }
+    private let pathMonitor = NWPathMonitor()
+    private var lastPath: String?
 
     /// Tapping a host: go back to its session if one is open, else connect.
     func resume(_ host: Host) {
@@ -138,9 +151,23 @@ final class SessionManager: ObservableObject {
     }
 
     /// After returning from the background: sessions iOS let die reconnect.
+    /// After returning to the app or a network change: check every session,
+    /// then reconnect the ones that dropped. A changed host key is left alone.
     func reconnectDropped() {
-        for s in sessions {
-            if case .disconnected = s.state { s.connect() }
+        Task {
+            for s in sessions { await s.checkAlive() }
+            for s in sessions where s.changedKey == nil {
+                if case .disconnected = s.state { s.connect() }
+            }
+        }
+    }
+
+    /// Wi-Fi to cellular and similar: the old TCP connections are usually dead.
+    func networkChanged() {
+        if store.data.settings.reconnectOnReturn {
+            reconnectDropped()
+        } else {
+            Task { for s in sessions { await s.checkAlive() } }
         }
     }
 

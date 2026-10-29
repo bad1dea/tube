@@ -153,6 +153,14 @@ final class TerminalSession: ObservableObject, Identifiable {
         lastSentSize = (0, 0)
         sendSize(cols: t.cols, rows: t.rows)
         detectOS(conn)
+        keepalive = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                // Only while Tube is on screen; iOS suspends it otherwise.
+                if UIApplication.shared.applicationState == .active { await self.checkAlive() }
+            }
+        }
     }
 
     /// Fills Host.osID for the host list icon. One exec channel, ignored on failure.
@@ -207,6 +215,21 @@ final class TerminalSession: ObservableObject, Identifiable {
     /// The remote shell logged out (`exit`, ^D). The manager closes the session.
     var onExit: (() -> Void)?
     private var attempt = 0
+    private var keepalive: Task<Void, Never>?
+
+    /// Checks the connection still answers; marks the session lost if not.
+    /// Returns false when it was lost (so the caller can reconnect).
+    @discardableResult
+    func checkAlive() async -> Bool {
+        guard state == .connected, let conn = connection else { return true }
+        let mine = attempt
+        if await conn.isResponsive() { return true }
+        guard mine == attempt, state == .connected else { return true }
+        teardown()
+        state = .disconnected("The connection was lost.")
+        view.feed(text: "\r\n\u{1b}[31mThe connection was lost.\u{1b}[0m\r\n")
+        return false
+    }
     /// Set when the last connect failed on a changed host key, for "Forget Old Key".
     @Published private(set) var changedKey: (host: String, port: Int)?
 
@@ -266,6 +289,8 @@ final class TerminalSession: ObservableObject, Identifiable {
     }
 
     private func teardown() {
+        keepalive?.cancel()
+        keepalive = nil
         outbound?.finish()
         outbound = nil
         writer?.cancel()

@@ -209,6 +209,58 @@ final class SSHIntegrationTests: XCTestCase {
         return (conn, shell, collector)
     }
 
+    func testResponsiveCheck() async throws {
+        let (conn, _, _) = try await openShell()
+        let alive = await conn.isResponsive(timeout: 5)
+        XCTAssertTrue(alive)
+        await conn.close()
+        let afterClose = await conn.isResponsive(timeout: 5)
+        XCTAssertFalse(afterClose)
+    }
+
+    /// A server that stops answering (container paused, like a dead network)
+    /// must time out instead of hanging. Needs docker; skipped otherwise.
+    func testUnresponsiveServerTimesOut() async throws {
+        // The container behind port 2022 (compose names it differently per tool).
+        // podman's docker shim ignores --filter publish, so match the ports column.
+        guard let line = dockerOutput("ps", "--format", "{{.ID}} {{.Ports}}", match: ":2022->"),
+              let name = line.split(separator: " ").first.map(String.init)
+        else { throw XCTSkip("no docker container on port 2022") }
+        defer { _ = docker("unpause", name) }
+        let (conn, _, _) = try await openShell()
+        XCTAssertTrue(docker("pause", name))
+        let start = Date()
+        let alive = await conn.isResponsive(timeout: 3)
+        XCTAssertFalse(alive)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 6)
+        _ = docker("unpause", name)
+        await conn.close()
+    }
+
+    private func dockerOutput(_ args: String..., match: String) -> String? {
+        let p = Process()
+        let out = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["docker"] + args
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        p.waitUntilExit()
+        let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        return text.split(separator: "\n").first { $0.contains(match) }.map(String.init)
+    }
+
+    private func docker(_ args: String...) -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        p.arguments = ["docker"] + args
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return false }
+        p.waitUntilExit()
+        return p.terminationStatus == 0
+    }
+
     /// `exit` is a logout, not a failure, whatever the last status was.
     func testExitIsCleanLogout() async throws {
         for line in ["exit\r", "false; exit 130\r"] {
