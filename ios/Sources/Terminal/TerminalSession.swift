@@ -61,6 +61,9 @@ final class TerminalSession: ObservableObject, Identifiable {
         }
     }
 
+    /// Last window size sent to the server (see sendSize).
+    private var lastSentSize = (cols: 0, rows: 0)
+
     /// Passwords typed into the prompt for this session, by host id.
     private var typedPasswords: [UUID: String] = [:]
 
@@ -266,8 +269,6 @@ extension TerminalSession: TerminalViewDelegate {
         lastSentSize = (cols, rows)
         Task { try? await self.shell?.resize(cols: cols, rows: rows) }
     }
-
-    private var lastSentSize = (cols: 0, rows: 0)
 
     nonisolated func setTerminalTitle(source: TerminalView, title: String) {
         Task { @MainActor in
