@@ -5,6 +5,7 @@ import TubeCore
 struct SettingsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
+    @EnvironmentObject var keeper: BackgroundKeeper
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -23,6 +24,21 @@ struct SettingsView: View {
             Section("Keyboard") {
                 Toggle("Open with key panel", isOn: $store.data.settings.showKeyPanelByDefault)
                 Toggle("Key clicks", isOn: $store.data.settings.keyClicks)
+            }
+            Section {
+                Toggle("Keep sessions alive in background", isOn: Binding(
+                    get: { store.data.settings.keepAliveInBackground },
+                    set: { on in
+                        store.data.settings.keepAliveInBackground = on
+                        if on && !keeper.locationAllowed { keeper.requestPermission() }
+                    }))
+                Toggle("Reconnect when returning", isOn: $store.data.settings.reconnectOnReturn)
+            } header: {
+                Text("Background")
+            } footer: {
+                Text(store.data.settings.keepAliveInBackground && keeper.authorization == .denied
+                     ? "Location access is off for Tube in Settings, so sessions will stop about 30 seconds after you leave the app."
+                     : "iOS stops apps about 30 seconds after you leave them. With this on, Tube runs a low-accuracy location session while SSH sessions are open, which keeps them connected; the location pill shows while it runs. Locations are not stored or sent anywhere.")
             }
             Section {
                 Toggle("Require Face ID / passcode", isOn: $store.data.settings.lockWithBiometrics)

@@ -29,6 +29,12 @@ enum Keychain {
         try set(Data(value.utf8), for: item)
     }
 
+    #if targetEnvironment(simulator)
+    // Unsigned simulator builds (CI UI tests) get errSecMissingEntitlement
+    // from the Keychain; keep secrets in memory there instead.
+    nonisolated(unsafe) static var simulatorFallback: [String: Data] = [:]
+    #endif
+
     static func set(_ data: Data, for item: Item) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -40,6 +46,12 @@ enum Keychain {
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
+        #if targetEnvironment(simulator)
+        if status == errSecMissingEntitlement {
+            simulatorFallback[item.account] = data
+            return
+        }
+        #endif
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
@@ -52,6 +64,9 @@ enum Keychain {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var out: CFTypeRef?
+        #if targetEnvironment(simulator)
+        if let d = simulatorFallback[item.account] { return d }
+        #endif
         guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
         return out as? Data
     }
@@ -61,6 +76,9 @@ enum Keychain {
     }
 
     static func remove(_ item: Item) {
+        #if targetEnvironment(simulator)
+        simulatorFallback[item.account] = nil
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

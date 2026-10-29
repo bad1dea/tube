@@ -1,5 +1,7 @@
 import UIKit
 import SwiftUI
+import LocalAuthentication
+import Combine
 import TubeCore
 
 @MainActor
@@ -13,6 +15,18 @@ final class SessionManager: ObservableObject {
     /// field inside the key panel would take first responder from the terminal.
     @Published var pendingSnippet: Snippet?
     @Published var filesPresented = false
+    @Published var passwordRequest: PasswordRequest?
+    /// Last connection error per host, for the badge in the host list.
+    @Published private(set) var failures: [UUID: String] = [:]
+    private var stateWatchers: [UUID: AnyCancellable] = [:]
+
+    struct PasswordRequest: Identifiable {
+        let id = UUID()
+        let sessionID: UUID
+        let destination: String
+        let hasPassword: Bool
+        let atPrompt: Bool
+    }
 
     let keyboard = KeyboardModel()
     private let store: AppStore
@@ -38,6 +52,14 @@ final class SessionManager: ObservableObject {
     }
 
     private func observe(_ s: TerminalSession) {
+        let hostID = s.hostID
+        stateWatchers[s.id] = s.$state.receive(on: RunLoop.main).sink { [weak self] state in
+            switch state {
+            case .connected: self?.failures[hostID] = nil
+            case .disconnected(let reason?): self?.failures[hostID] = reason
+            default: break
+            }
+        }
         // Forward per-session changes (title, state) so the tab strip redraws.
         Task { [weak self, weak s] in
             guard let s else { return }
@@ -54,11 +76,19 @@ final class SessionManager: ObservableObject {
     func close(_ id: UUID) {
         guard let i = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[i].close()
+        stateWatchers[id] = nil
         sessions.remove(at: i)
         if activeID == id {
             activeID = sessions.indices.contains(i) ? sessions[i].id : sessions.last?.id
         }
         if sessions.isEmpty { terminalPresented = false }
+    }
+
+    /// After returning from the background: sessions iOS let die reconnect.
+    func reconnectDropped() {
+        for s in sessions {
+            if case .disconnected = s.state { s.connect() }
+        }
     }
 
     func reconnect(_ id: UUID) {
@@ -69,6 +99,10 @@ final class SessionManager: ObservableObject {
         terminalPresented = false
     }
 
+    func isOpen(_ hostID: UUID) -> Bool {
+        sessions.contains { $0.hostID == hostID && $0.state == .connected }
+    }
+
     func requestNewSession() {
         hostPickerPresented = true
     }
@@ -77,8 +111,30 @@ final class SessionManager: ObservableObject {
         if active != nil { filesPresented = true }
     }
 
+    /// Asks first; the password is only typed after confirmation and device
+    /// authentication (confirmTypePassword).
     func sendPassword() {
-        active?.sendPassword()
+        guard let s = active else { return }
+        passwordRequest = PasswordRequest(sessionID: s.id, destination: s.destination,
+                                          hasPassword: s.hasSavedPassword, atPrompt: s.looksLikePasswordPrompt)
+    }
+
+    func confirmTypePassword(_ request: PasswordRequest) {
+        guard let s = sessions.first(where: { $0.id == request.sessionID }) else { return }
+        let ctx = LAContext()
+        var err: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+            // No passcode set on the device: the confirmation was the only gate.
+            s.typeSavedPassword()
+            _ = s.view.becomeFirstResponder()
+            return
+        }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Type the saved password for \(request.destination)") { ok, _ in
+            Task { @MainActor in
+                if ok { s.typeSavedPassword() }
+                _ = s.view.becomeFirstResponder()
+            }
+        }
     }
 
     func run(snippet: Snippet, values: [String: String]) {

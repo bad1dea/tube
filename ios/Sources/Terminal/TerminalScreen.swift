@@ -22,6 +22,21 @@ struct TerminalScreen: View {
                 sessions.run(snippet: snippet, values: values)
             }
         }
+        .alert(item: $sessions.passwordRequest) { req in
+            if !req.hasPassword {
+                return Alert(title: Text("No saved password"),
+                             message: Text("Save a password for \(req.destination) in the host settings to use this key."),
+                             dismissButton: .default(Text("OK")))
+            }
+            return Alert(
+                title: Text("Type saved password?"),
+                message: Text(req.atPrompt
+                    ? "Types the password for \(req.destination) and presses Return. Requires Face ID, Touch ID or your passcode."
+                    : "The cursor is not at a password prompt. The password will be typed where the cursor is and may appear on screen in plain text."),
+                primaryButton: req.atPrompt ? .default(Text("Type password")) { sessions.confirmTypePassword(req) }
+                                            : .destructive(Text("Type anyway")) { sessions.confirmTypePassword(req) },
+                secondaryButton: .cancel { _ = sessions.active?.view.becomeFirstResponder() })
+        }
         .sheet(isPresented: $sessions.filesPresented) {
             if let s = sessions.active, let host = store.host(s.hostID) {
                 FilesView(host: host, existing: s.sshConnection)
@@ -104,8 +119,10 @@ final class TerminalHostController: UIViewController {
     private let sessions: SessionManager
     private var current: TubeTerminalView?
     private lazy var accessory = AccessoryBar(keyboard: sessions.keyboard, sessions: sessions)
-    private lazy var panel = KeyPanel(keyboard: sessions.keyboard) { [unowned self] tab in
-        AnyView(PanelTabView(tab: tab).environmentObject(self.store).environmentObject(self.sessions))
+    // The panel outlives this controller (it stays installed as the terminal
+    // view's inputView), so its tab factory must not capture self.
+    private lazy var panel = KeyPanel(keyboard: sessions.keyboard) { [store, sessions] tab in
+        AnyView(PanelTabView(tab: tab).environmentObject(store).environmentObject(sessions))
     }
 
     init(store: AppStore, sessions: SessionManager) {
@@ -142,9 +159,64 @@ final class TerminalHostController: UIViewController {
         ])
         tv.inputAccessoryView = accessory
         tv.inputView = sessions.keyboard.panelVisible ? panel : nil
+        installPadGesture(on: tv)
         if wasFirstResponder && view.window != nil {
             _ = tv.becomeFirstResponder()
         }
+    }
+
+    // MARK: Long-press pad
+
+    private final class PadPress: UILongPressGestureRecognizer {}
+    private var pad: TerminalPad?
+    private var padOrigin: CGPoint = .zero
+
+    private func installPadGesture(on tv: TubeTerminalView) {
+        guard !(tv.gestureRecognizers ?? []).contains(where: { $0 is PadPress }) else { return }
+        let press = PadPress(target: self, action: #selector(padPressed(_:)))
+        press.minimumPressDuration = 0.35
+        tv.addGestureRecognizer(press)
+        // SwiftTerm's own long press opens an edit menu; the pad carries the
+        // same copy/paste, so it takes precedence.
+        for g in tv.gestureRecognizers ?? [] where g is UILongPressGestureRecognizer && !(g is PadPress) {
+            g.require(toFail: press)
+        }
+    }
+
+    @objc private func padPressed(_ g: UILongPressGestureRecognizer) {
+        guard let tv = current else { return }
+        let p = g.location(in: view)
+        switch g.state {
+        case .began:
+            showPad(at: p, for: tv)
+        case .changed:
+            pad?.drive(CGVector(dx: p.x - padOrigin.x, dy: p.y - padOrigin.y))
+        default:
+            pad?.release()
+        }
+    }
+
+    private func showPad(at point: CGPoint, for tv: TubeTerminalView) {
+        pad?.removeFromSuperview()
+        let size = TerminalPad.size
+        let bounds = view.bounds.inset(by: view.safeAreaInsets).insetBy(dx: 8, dy: 8)
+        // Centre the ring under the finger, kept fully on screen.
+        var origin = CGPoint(x: point.x - size.width / 2, y: point.y - 8 - TerminalPad.ringSize / 2)
+        origin.x = min(max(origin.x, bounds.minX), bounds.maxX - size.width)
+        origin.y = min(max(origin.y, bounds.minY), view.keyboardLayoutGuide.layoutFrame.minY - size.height - 8)
+        let p = TerminalPad(frame: CGRect(origin: origin, size: size))
+        p.terminal = tv
+        p.onClose = { [weak self, weak p] in
+            UIView.animate(withDuration: 0.15, animations: { p?.alpha = 0 }) { _ in p?.removeFromSuperview() }
+            if self?.pad === p { self?.pad = nil }
+        }
+        p.alpha = 0
+        view.addSubview(p)
+        UIView.animate(withDuration: 0.12) { p.alpha = 1 }
+        pad = p
+        padOrigin = CGPoint(x: origin.x + size.width / 2, y: origin.y + 8 + TerminalPad.ringSize / 2)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        p.refresh()
     }
 
     private func toggleInputMode() {

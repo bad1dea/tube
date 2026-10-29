@@ -12,6 +12,15 @@ enum KeyStyle {
     static let smallFont = UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 }
 
+/// UIScrollView refuses to cancel touches that began on a UIControl, so a
+/// drag starting on a key would never scroll the row. Keys here are safe to
+/// cancel: they only fire on touch-up.
+final class KeyScrollView: UIScrollView {
+    override func touchesShouldCancel(in view: UIView) -> Bool {
+        view is KeyButton || super.touchesShouldCancel(in: view)
+    }
+}
+
 /// One key. Fires on touch-up so keys inside a scroll view do not trigger when
 /// the user starts a scroll on them. Repeating keys fire after a hold and keep
 /// firing until release; latch keys lock on a long hold.
@@ -131,7 +140,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
     private let sessions: SessionManager
     private let stripScroll = UIScrollView()
     private let stripStack = UIStackView()
-    private let keyScroll = UIScrollView()
+    private let keyScroll = KeyScrollView()
     private var latchButtons: [LatchKind: KeyButton] = [:]
     private var toggleButton = UIButton(type: .system)
     private var cancellables: Set<AnyCancellable> = []
@@ -191,7 +200,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
             stripStack.heightAnchor.constraint(equalTo: stripScroll.frameLayoutGuide.heightAnchor),
         ])
         let add = iconButton("plus", label: "New session") { [weak self] in self?.sessions.requestNewSession() }
-        let password = iconButton("key", label: "Send saved password") { [weak self] in self?.sessions.sendPassword() }
+        let password = iconButton("key", label: "Type saved password") { [weak self] in self?.sessions.sendPassword() }
         let files = iconButton("folder", label: "Files (SFTP)") { [weak self] in self?.sessions.requestFiles() }
         toggleButton = iconButton("square.grid.2x2", label: "Key panel") { [weak self] in self?.keyboard.perform(.togglePanel) }
         let hide = iconButton("keyboard.chevron.compact.down", label: "Hide keyboard") { [weak self] in self?.keyboard.perform(.dismissKeyboard) }
@@ -199,6 +208,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
         vstack.addArrangedSubview(strip)
 
         // Key row
+        keyScroll.accessibilityIdentifier = "keyRow"
         keyScroll.showsHorizontalScrollIndicator = false
         keyScroll.delaysContentTouches = false
         keyScroll.canCancelContentTouches = true
@@ -300,7 +310,7 @@ final class KeyPanel: UIInputView, UIInputViewAudioFeedback {
 
     private let keyboard: KeyboardModel
     private let content = UIView()
-    private let keysView = UIScrollView()
+    private let keysView = KeyScrollView()
     private var hosted: UIHostingController<AnyView>?
     private var tabButtons: [PanelTab: UIButton] = [:]
     private var latchButtons: [LatchKind: KeyButton] = [:]

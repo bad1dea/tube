@@ -201,3 +201,29 @@ public enum SSHConfig {
         return out
     }
 }
+
+public enum QuickConnect {
+    /// Accepts "host", "user@host", "user@host:port", "[v6]:port" and
+    /// "ssh [-p port] [-l user] user@host" as typed into the quick connect field.
+    public static func parse(_ input: String) -> (user: String?, host: String, port: Int?)? {
+        var words = input.split(whereSeparator: \.isWhitespace).map(String.init)
+        if words.first == "ssh" { words.removeFirst() }
+        var port: Int?
+        var user: String?
+        var target: String?
+        var i = 0
+        while i < words.count {
+            let w = words[i]
+            if (w == "-p" || w == "-l"), i + 1 < words.count {
+                if w == "-p" { port = Int(words[i + 1]) } else { user = words[i + 1] }
+                i += 2
+                continue
+            }
+            if w.hasPrefix("-") { i += 1; continue }
+            target = w
+            i += 1
+        }
+        guard let target, let spec = JumpSpec(target) else { return nil }
+        return (spec.user ?? user, spec.host, spec.port ?? port)
+    }
+}

@@ -160,3 +160,14 @@ final class VaultCryptoTests: XCTestCase {
         XCTAssertEqual(rec.base64EncodedString(), "w7dOgz2l/n1IJS5godqscl1jgBK8TV66jJdU+SQfus4=")
     }
 }
+
+final class QuickConnectTests: XCTestCase {
+    func testForms() {
+        XCTAssertEqual(QuickConnect.parse("ssh khuong@100.64.0.10 -p 2022")?.port, 2022)
+        XCTAssertEqual(QuickConnect.parse("ssh khuong@100.64.0.10 -p 2022")?.user, "khuong")
+        XCTAssertEqual(QuickConnect.parse("ssh -p 2222 -l jump ctrl.khuo.ng")?.user, "jump")
+        XCTAssertEqual(QuickConnect.parse("root@[fd00::1]:22")?.host, "fd00::1")
+        XCTAssertEqual(QuickConnect.parse("amy")?.host, "amy")
+        XCTAssertNil(QuickConnect.parse("ssh"))
+    }
+}

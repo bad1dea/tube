@@ -55,6 +55,8 @@ struct AppSettings: Codable, Equatable {
     var lockWithBiometrics = false
     var showKeyPanelByDefault = false
     var keyClicks = true
+    var keepAliveInBackground = false
+    var reconnectOnReturn = true
 
     init() {}
 
@@ -64,6 +66,8 @@ struct AppSettings: Codable, Equatable {
         lockWithBiometrics = try c.decodeIfPresent(Bool.self, forKey: .lockWithBiometrics) ?? false
         showKeyPanelByDefault = try c.decodeIfPresent(Bool.self, forKey: .showKeyPanelByDefault) ?? false
         keyClicks = try c.decodeIfPresent(Bool.self, forKey: .keyClicks) ?? true
+        keepAliveInBackground = try c.decodeIfPresent(Bool.self, forKey: .keepAliveInBackground) ?? false
+        reconnectOnReturn = try c.decodeIfPresent(Bool.self, forKey: .reconnectOnReturn) ?? true
     }
 }
 

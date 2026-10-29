@@ -54,8 +54,26 @@ targets:
           CODE_SIGN_IDENTITY: Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER: Tube AppStore
 
+  TubeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Tube
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pro.imnot.tube.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Tube
+        TARGETED_DEVICE_FAMILY: "1,2"
+
 schemes:
   Tube:
     build:
       targets:
         Tube: all
+        TubeUITests: [test]
+    test:
+      targets:
+        - TubeUITests

@@ -13,6 +13,7 @@ final class TubeTerminalView: TerminalView {
 
     override init(frame: CGRect, font: UIFont?) {
         super.init(frame: frame, font: font)
+        accessibilityIdentifier = "terminal"
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:)))
         addGestureRecognizer(pinch)
         autocorrectionType = .no

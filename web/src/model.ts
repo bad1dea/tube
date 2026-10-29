@@ -24,6 +24,7 @@ export interface Host {
   notes: string;
   terminal?: TerminalSettings;
   lastConnected?: number;
+  osID?: string;
   updatedAt: number;
 }
 

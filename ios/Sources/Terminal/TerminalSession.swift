@@ -107,6 +107,21 @@ final class TerminalSession: ObservableObject, Identifiable {
         }
         let t = view.getTerminal()
         Task { try? await shell.resize(cols: t.cols, rows: t.rows) }
+        detectOS(conn)
+    }
+
+    /// Fills Host.osID for the host list icon. One exec channel, ignored on failure.
+    private func detectOS(_ conn: SSHConnection) {
+        Task { [weak self] in
+            guard let out = try? await conn.run("uname -s; (. /etc/os-release 2>/dev/null && echo \"$ID\"); true") else { return }
+            let lines = out.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")) }
+            guard let kernel = lines.first, !kernel.isEmpty else { return }
+            let id = (lines.count > 1 && !lines[1].isEmpty ? lines[1] : kernel).lowercased()
+            guard let self, let store = self.store,
+                  let i = store.data.hosts.firstIndex(where: { $0.id == self.hostID }),
+                  store.data.hosts[i].osID != id else { return }
+            store.data.hosts[i].osID = id
+        }
     }
 
     private func remoteClosed() {
@@ -128,9 +143,28 @@ final class TerminalSession: ObservableObject, Identifiable {
         outbound?.yield(bytes)
     }
 
-    func sendPassword() {
-        guard let store, let host = store.host(hostID),
-              let pw = Keychain.string(for: .hostPassword(host.id)) else { return }
+    var hasSavedPassword: Bool {
+        Keychain.data(for: .hostPassword(hostID)) != nil
+    }
+
+    var destination: String { store?.host(hostID)?.destination ?? title }
+
+    /// Text of the line the cursor is on, e.g. "[sudo] password for khuong: ".
+    var cursorLine: String {
+        let t = view.getTerminal()
+        return t.getLine(row: t.getCursorLocation().y)?.translateToString(trimRight: true) ?? ""
+    }
+
+    /// Heuristic only: sudo, ssh, su and most tools end the prompt line with
+    /// one of these words. Echo state is not visible to the client.
+    var looksLikePasswordPrompt: Bool {
+        let l = cursorLine.lowercased()
+        return ["password", "passphrase", "passcode"].contains { l.contains($0) }
+    }
+
+    /// Types the saved password and Return. Callers authenticate first.
+    func typeSavedPassword() {
+        guard let pw = Keychain.string(for: .hostPassword(hostID)) else { return }
         send(Array(pw.utf8) + [0x0d])
     }
 

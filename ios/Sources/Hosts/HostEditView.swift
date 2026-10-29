@@ -11,8 +11,12 @@ struct HostEditView: View {
     @State private var addingJump = false
     @State private var newGroup = ""
     @State private var overrideTerminal = false
+    let saveTitle: String
+    let onSave: ((Host) -> Void)?
 
-    init(host: Host) {
+    init(host: Host, saveTitle: String = "Save", onSave: ((Host) -> Void)? = nil) {
+        self.saveTitle = saveTitle
+        self.onSave = onSave
         _host = State(initialValue: host)
         _tagText = State(initialValue: host.tags.joined(separator: " "))
         _overrideTerminal = State(initialValue: host.terminal != nil)
@@ -125,7 +129,7 @@ struct HostEditView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { save() }.disabled(!valid)
+                Button(saveTitle) { save() }.disabled(!valid)
             }
         }
         .sheet(isPresented: $addingJump) {
@@ -171,6 +175,8 @@ struct HostEditView: View {
         host.tags = tagText.split(separator: " ").map(String.init)
         if !overrideTerminal { host.terminal = nil }
         store.upsert(host, password: passwordChanged ? password : nil)
+        let saved = store.host(host.id) ?? host
         dismiss()
+        onSave?(saved)
     }
 }

@@ -36,6 +36,45 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log | grep -E "error:|warning: .*(deprecated|unused)|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
 
+      - name: Enable SSH on the runner for UI tests
+        run: |
+          # The UI test connects to this Mac over SSH (password auth).
+          sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || sudo systemsetup -setremotelogin on || true
+          PW="ui-$(openssl rand -hex 8)"
+          sudo dscl . -passwd /Users/$(whoami) "$PW"
+          echo "::add-mask::$PW"
+          echo "UITEST_PW=$PW" >> "$GITHUB_ENV"
+          sleep 2
+          nc -z 127.0.0.1 22 && echo "sshd listening" || echo "sshd not listening; terminal steps will see a failed connection"
+
+      - name: UI tests on simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name']]; print(ids[-1] if ids else '')")
+          echo "simulator $UDID"
+          xcodebuild test -project Tube.xcodeproj -scheme Tube -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="$(whoami)" \
+            TEST_RUNNER_TUBE_UITEST_PASSWORD="$UITEST_PW" 2>&1 | tee uitest.log | grep -E "error:|Test Case|XCTAssert|failed|passed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" uitest.log
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p shots
+          [ -d "$RUNNER_TEMP/ui.xcresult" ] && xcrun xcresulttool export attachments --path "$RUNNER_TEMP/ui.xcresult" --output-path shots || true
+          ls shots | head -40
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots
+          path: shots
+          if-no-files-found: ignore
+
       - name: TubeKit tests on macOS
         run: swift test --filter 'TermInputTests|TubeCoreTests'
 

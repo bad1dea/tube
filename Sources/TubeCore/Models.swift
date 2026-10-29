@@ -18,12 +18,16 @@ public struct Host: Codable, Hashable, Identifiable, Sendable {
     public var notes: String
     public var terminal: TerminalSettings?
     public var lastConnected: Date?
+    /// `ID` from the server's /etc/os-release ("fedora", "ubuntu"), or
+    /// "darwin"/"freebsd" from uname. Filled in after the first connect.
+    public var osID: String?
     public var updatedAt: Date
 
     public init(id: UUID = UUID(), label: String = "", hostname: String, port: Int = 22, username: String,
                 identityID: UUID? = nil, hasPassword: Bool = false, jumpHostIDs: [UUID] = [],
                 groupID: UUID? = nil, tags: [String] = [], favorite: Bool = false, notes: String = "",
-                terminal: TerminalSettings? = nil, lastConnected: Date? = nil, updatedAt: Date = Date()) {
+                terminal: TerminalSettings? = nil, lastConnected: Date? = nil, osID: String? = nil,
+                updatedAt: Date = Date()) {
         self.id = id
         self.label = label
         self.hostname = hostname
@@ -38,6 +42,7 @@ public struct Host: Codable, Hashable, Identifiable, Sendable {
         self.notes = notes
         self.terminal = terminal
         self.lastConnected = lastConnected
+        self.osID = osID
         self.updatedAt = updatedAt
     }
 

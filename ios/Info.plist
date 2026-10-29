@@ -30,6 +30,12 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Tube with Face ID.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>With "Keep sessions alive in background" on, Tube uses a low-accuracy location session so iOS keeps your SSH sessions connected. Your location is not stored or sent anywhere.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to SSH servers on your local network.</string>
 	<key>UISupportedInterfaceOrientations</key>
