@@ -1,3 +1,5 @@
+# TUBE_DOMAIN: a hostname for automatic TLS (repo docker-compose.yml), or ":80"
+# behind another TLS proxy (e.g. Traefik), which then terminates HTTPS.
 {$TUBE_DOMAIN} {
 	encode gzip zstd
 	header {
@@ -8,10 +10,13 @@
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data:; frame-ancestors 'none'"
 	}
 	handle /v1/* {
-		reverse_proxy sync:8080
+		reverse_proxy {$TUBE_SYNC_UPSTREAM:sync:8080}
+	}
+	handle /healthz {
+		reverse_proxy {$TUBE_SYNC_UPSTREAM:sync:8080}
 	}
 	handle /relay {
-		reverse_proxy gateway:8081
+		reverse_proxy {$TUBE_GATEWAY_UPSTREAM:gateway:8081}
 	}
 	handle {
 		root * /srv
