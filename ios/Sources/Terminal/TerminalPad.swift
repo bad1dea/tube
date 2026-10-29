@@ -13,7 +13,14 @@ final class TerminalPad: UIView {
     private(set) var mode: Mode = .cursor
     private let ring = UIView()
     private let knob = UIView()
-    private let modeControl = UISegmentedControl(items: ["Cursor", "Scroll"])
+    // Icons: the pad is too narrow for "Cursor" / "Scroll" next to four buttons.
+    private let modeControl: UISegmentedControl = {
+        let cursor = UIImage(systemName: "character.cursor.ibeam")!
+        cursor.accessibilityLabel = "Cursor keys"
+        let scroll = UIImage(systemName: "scroll")!
+        scroll.accessibilityLabel = "Scroll"
+        return UISegmentedControl(items: [cursor, scroll])
+    }()
     private var copyButton: UIButton!
     private var timer: Timer?
     private var direction: TerminalKey?
