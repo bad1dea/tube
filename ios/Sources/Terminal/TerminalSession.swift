@@ -39,6 +39,11 @@ final class TerminalSession: ObservableObject, Identifiable {
         view.optionAsMetaKey = true
         TerminalTheme.named(settings.themeName).apply(to: view)
         view.terminalDelegate = self
+        if ProcessInfo.processInfo.environment["TUBE_UITEST"] == "1" {
+            // A blinking caret keeps the app from ever being idle, and XCUITest
+            // waits for idle before each step.
+            view.getTerminal().setCursorStyle(.steadyBlock)
+        }
         view.onFontSizeChange = { [weak self] size in self?.setFontSize(size) }
     }
 

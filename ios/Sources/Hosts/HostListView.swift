@@ -30,7 +30,7 @@ struct HostListView: View {
     private var recent: [Host] {
         store.data.hosts.filter { $0.lastConnected != nil }
             .sorted { $0.lastConnected! > $1.lastConnected! }
-            .prefix(3).map { $0 }
+            .prefix(8).map { $0 }
     }
 
     var body: some View {
@@ -53,9 +53,34 @@ struct HostListView: View {
                 }
             }
 
-            if search.isEmpty && recent.count > 1 {
+            if search.isEmpty && !recent.isEmpty {
                 Section("Recent") {
-                    ForEach(recent) { row($0) }
+                    // One-tap tiles; the full rows live in the sections below.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            ForEach(recent) { h in
+                                Button { sessions.open(h) } label: {
+                                    VStack(spacing: 6) {
+                                        OSTile(osID: h.osID, size: 46)
+                                            .overlay(alignment: .topTrailing) {
+                                                if sessions.failures[h.id] != nil {
+                                                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
+                                                        .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground)))
+                                                        .offset(x: 6, y: -6)
+                                                } else if sessions.isOpen(h.id) {
+                                                    Circle().fill(.green).frame(width: 10, height: 10).offset(x: 3, y: -3)
+                                                }
+                                            }
+                                        Text(h.displayName).font(.caption).lineLimit(1)
+                                    }
+                                    .frame(width: 70)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Connect to \(h.displayName)")
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
                 }
             }
 
@@ -195,6 +220,7 @@ struct HostListView: View {
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }
+        .foregroundStyle(.primary)
         .accessibilityElement(children: .combine)
     }
 

@@ -55,6 +55,7 @@ struct TubeApp: App {
 
     init() {
         let store = UITestSeed.store() ?? AppStore()
+        if ProcessInfo.processInfo.environment["TUBE_UITEST"] == "1" { UIView.setAnimationsEnabled(false) }
         let trust = HostKeyTrust(store: store)
         _store = StateObject(wrappedValue: store)
         _trust = StateObject(wrappedValue: trust)

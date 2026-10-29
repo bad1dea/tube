@@ -47,18 +47,23 @@ final class TubeUITests: XCTestCase {
         }
         let esc = element("Escape")
         XCTAssertTrue(esc.waitForExistence(timeout: 15), "key bar did not appear")
+        // First keyboard use on a fresh simulator shows a swipe-typing tutorial.
+        let tutorial = app.buttons["Continue"]
+        if tutorial.waitForExistence(timeout: 3) { tutorial.tap() }
         sleep(3)
         shot("04-terminal")
 
-        // The key row must scroll: F12 starts off screen.
+        // The key row must scroll: esc scrolls away, F12 comes into reach.
         let f12 = element("F12")
         let row = app.scrollViews["keyRow"]
         XCTAssertTrue(row.exists)
         XCTAssertFalse(f12.isHittable, "F12 should start off screen")
-        for _ in 0..<4 where !f12.isHittable { row.swipeLeft() }
-        XCTAssertTrue(f12.isHittable, "key row did not scroll")
+        row.swipeLeft()
+        XCTAssertFalse(esc.isHittable, "key row did not scroll")
+        for _ in 0..<10 where !f12.isHittable { row.swipeLeft() }
+        XCTAssertTrue(f12.isHittable, "could not reach F12")
         shot("05-keyrow-scrolled")
-        for _ in 0..<4 { row.swipeRight() }
+        for _ in 0..<12 where !esc.isHittable { row.swipeRight() }
 
         // Suggestions while typing.
         app.typeText("git s")
