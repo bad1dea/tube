@@ -40,15 +40,48 @@ struct HostListView: View {
             }
 
             if !sessions.sessions.isEmpty && search.isEmpty {
-                Section("Open") {
+                Section {
                     ForEach(sessions.sessions) { s in
-                        Button {
-                            sessions.select(s.id)
-                            sessions.terminalPresented = true
-                        } label: {
-                            SessionRow(session: s, host: store.host(s.hostID))
+                        // Two borderless buttons so the row and the x take separate taps.
+                        HStack {
+                            Button {
+                                sessions.select(s.id)
+                                sessions.terminalPresented = true
+                            } label: {
+                                SessionRow(session: s, host: store.host(s.hostID))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.primary)
+                            Button {
+                                sessions.close(s.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title3)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Disconnect \(sessions.label(for: s))")
                         }
-                        .foregroundStyle(.primary)
+                        .swipeActions {
+                            Button("Disconnect", role: .destructive) { sessions.close(s.id) }
+                        }
+                        .contextMenu {
+                            Button("Disconnect", systemImage: "xmark", role: .destructive) { sessions.close(s.id) }
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Open")
+                        Spacer()
+                        if sessions.sessions.count > 1 {
+                            Button("Disconnect All") {
+                                for id in sessions.sessions.map(\.id) { sessions.close(id) }
+                            }
+                            .font(.footnote)
+                            .textCase(nil)
+                        }
                     }
                 }
             }
@@ -356,7 +389,6 @@ struct SessionRow: View {
                 Text(host?.destination ?? "").font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
         }
     }
 }

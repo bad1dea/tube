@@ -280,5 +280,18 @@ final class SessionWorkflowTests: XCTestCase {
         tap("Hosts")
         sleep(1)
         shot("w14-hosts")
+
+        // Disconnect from the host list: one with its x, the rest with Disconnect All.
+        let x = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Disconnect runner'")).firstMatch
+        for _ in 0..<4 where !(x.exists && x.isHittable) { app.swipeDown() }
+        XCTAssertTrue(x.waitForExistence(timeout: 5), "no disconnect button on open sessions")
+        let before = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Disconnect runner'")).count
+        x.tap()
+        sleep(1)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Disconnect runner'")).count, before - 1)
+        if app.buttons["Disconnect All"].exists { app.buttons["Disconnect All"].tap() }
+        sleep(1)
+        XCTAssertFalse(app.staticTexts["Open"].exists, "sessions still open")
+        shot("w15-disconnected")
     }
 }
