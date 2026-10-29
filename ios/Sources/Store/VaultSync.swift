@@ -289,7 +289,7 @@ final class SyncController: ObservableObject {
         do {
             devices = try await SyncAPI(baseURL: c.serverURL, token: c.token).devices()
         } catch {
-            lastError = "\(error)"
+            lastError = syncErrorText(error)
         }
     }
 
@@ -299,7 +299,7 @@ final class SyncController: ObservableObject {
             try save(try await VaultClient.revokeAndRotate(c, deviceID: deviceID, store: adapter))
             await refreshDevices()
         } catch {
-            lastError = "\(error)"
+            lastError = syncErrorText(error)
         }
     }
 
@@ -327,7 +327,7 @@ final class SyncController: ObservableObject {
             lastError = "This device was revoked or the vault was removed. Sync is off."
             try? save(nil)
         } catch {
-            lastError = "\(error)"
+            lastError = syncErrorText(error)
         }
     }
 

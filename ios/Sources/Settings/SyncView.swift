@@ -114,7 +114,7 @@ struct PairingCodeView: View {
             Button(working ? "Creating…" : "Show Pairing Code") {
                 working = true
                 Task {
-                    do { code = try await sync.invite() } catch { self.error = "\(error)" }
+                    do { code = try await sync.invite() } catch { self.error = syncErrorText(error) }
                     working = false
                 }
             }
@@ -210,7 +210,7 @@ struct SyncSetupView: View {
                 switch mode {
                 case .create:
                     guard let url = URL(string: server), url.scheme == "https" || url.host == "localhost" else {
-                        error = "Use an https:// URL"
+                        error = "The server address needs to start with https://"
                         return
                     }
                     let rk = try await sync.create(server: url, registrationToken: registration)
@@ -219,13 +219,39 @@ struct SyncSetupView: View {
                     try await sync.join(code: code)
                     dismiss()
                 case .recover:
-                    guard let url = URL(string: server) else { error = "Invalid server URL"; return }
+                    guard let url = URL(string: server) else { error = "That server address doesn’t look right."; return }
                     try await sync.recover(server: url, vaultID: vaultID.trimmingCharacters(in: .whitespaces), recoveryKey: recoveryKey)
                     dismiss()
                 }
             } catch {
-                self.error = "\(error)"
+                self.error = syncErrorText(error)
             }
         }
+    }
+}
+
+/// URLSession errors are long NSError dumps; say what failed instead.
+func syncErrorText(_ error: Error) -> String {
+    if let e = error as? SyncError {
+        switch e.status {
+        case 401, 403: return "The server turned this down: \(e.message). Check the registration token or pairing code."
+        case 0: return e.message
+        default: return "The sync server answered \(e.status): \(e.message)"
+        }
+    }
+    guard let u = error as? URLError else { return error.localizedDescription }
+    let host = u.failingURL?.host() ?? "the server"
+    switch u.code {
+    case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+         .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected:
+        return "Couldn’t make a secure connection to \(host). Check the address, and that the server has a valid HTTPS certificate."
+    case .cannotFindHost, .dnsLookupFailed:
+        return "Couldn’t find \(host). Check the address."
+    case .cannotConnectToHost, .timedOut, .networkConnectionLost:
+        return "Couldn’t reach \(host). Check the address and that the server is running."
+    case .notConnectedToInternet:
+        return "You’re offline."
+    default:
+        return "Couldn’t talk to \(host): \(u.localizedDescription)"
     }
 }
