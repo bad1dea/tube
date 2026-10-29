@@ -1,16 +1,18 @@
 # Disposable SSH servers for integration tests. Start with test/sshd/up.sh.
+# Ports can be moved with TUBE_SSH_JUMP_PORT / TUBE_SSH_TARGET_PORT (and
+# COMPOSE_PROJECT_NAME) to run a second copy next to the first.
 #   jump    127.0.0.1:2222  reachable from the host
 #   target  127.0.0.1:2022  also reachable as "target:22" from jump only
 #   inner   no published port; only via jump (tests ProxyJump)
 services:
   jump:
     build: .
-    ports: ["127.0.0.1:2222:22"]
+    ports: ["127.0.0.1:${TUBE_SSH_JUMP_PORT:-2222}:22"]
     volumes: ["./keys:/keys:ro,z"]
     networks: [edge, inside]
   target:
     build: .
-    ports: ["127.0.0.1:2022:22"]
+    ports: ["127.0.0.1:${TUBE_SSH_TARGET_PORT:-2022}:22"]
     volumes: ["./keys:/keys:ro,z"]
     networks: [edge, inside]
   inner:

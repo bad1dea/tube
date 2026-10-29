@@ -12,7 +12,7 @@ rm -f keys/host_ed25519.pub.authorized
 # host_ed25519.pub must not end up in authorized_keys
 mkdir -p keys/host && mv -f keys/host_ed25519.pub keys/host/ 2>/dev/null || true
 docker compose up -d --build
-for p in 2222 2022; do
+for p in ${TUBE_SSH_JUMP_PORT:-2222} ${TUBE_SSH_TARGET_PORT:-2022}; do
   for i in $(seq 1 30); do
     ssh-keyscan -p $p 127.0.0.1 >/dev/null 2>&1 && break
     sleep 0.5

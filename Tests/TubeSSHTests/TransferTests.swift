@@ -17,7 +17,7 @@ final class TransferTests: XCTestCase {
     func connect() async throws -> SSHConnection {
         let key = try String(contentsOf: keys.appendingPathComponent("client_ed25519"), encoding: .utf8)
         return try await SSHConnection.connect(
-            chain: [SSHHop(host: "127.0.0.1", port: 2022, username: "tester", credential: .privateKey(key, passphrase: nil))],
+            chain: [SSHHop(host: "127.0.0.1", port: testTargetPort, username: "tester", credential: .privateKey(key, passphrase: nil))],
             trust: MemoryTrust(accept: true))
     }
 

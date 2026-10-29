@@ -7,6 +7,10 @@ import Citadel
 import NIOSSH
 import Crypto
 
+/// Ports of the test/sshd containers; see test/sshd/compose.yml.
+let testTargetPort = Int(ProcessInfo.processInfo.environment["TUBE_SSH_TARGET_PORT"] ?? "") ?? 2022
+let testJumpPort = Int(ProcessInfo.processInfo.environment["TUBE_SSH_JUMP_PORT"] ?? "") ?? 2222
+
 // Runs against test/sshd (start with test/sshd/up.sh). Skipped unless
 // TUBE_SSH_TESTS=1 so `swift test` works without containers.
 
@@ -53,7 +57,7 @@ final class SSHIntegrationTests: XCTestCase {
     }
 
     func target(_ cred: SSHCredential) -> SSHHop {
-        SSHHop(host: "127.0.0.1", port: 2022, username: "tester", credential: cred)
+        SSHHop(host: "127.0.0.1", port: testTargetPort, username: "tester", credential: cred)
     }
 
     func testPasswordAuthAndUnknownHostPrompt() async throws {
@@ -89,7 +93,7 @@ final class SSHIntegrationTests: XCTestCase {
             XCTFail("connected with wrong password")
         } catch let e as SSHConnectError {
             // The app re-prompts for this host's password on this error.
-            XCTAssertEqual(e, .authenticationFailed(host: "127.0.0.1", port: 2022, user: "tester"))
+            XCTAssertEqual(e, .authenticationFailed(host: "127.0.0.1", port: testTargetPort, user: "tester"))
         }
     }
 
@@ -99,14 +103,14 @@ final class SSHIntegrationTests: XCTestCase {
             _ = try await SSHConnection.connect(chain: [target(.password("tester-pass"))], trust: trust)
             XCTFail("connected despite rejected host key")
         } catch let e as SSHConnectError {
-            XCTAssertEqual(e, .hostKeyRejected(host: "127.0.0.1", port: 2022))
+            XCTAssertEqual(e, .hostKeyRejected(host: "127.0.0.1", port: testTargetPort))
         }
     }
 
     func testChangedHostKeyIsRefused() async throws {
         let trust = MemoryTrust(accept: true)
         // Pretend we previously stored a different key for this endpoint.
-        trust.known.trust(host: "127.0.0.1", port: 2022, algorithm: "ssh-ed25519",
+        trust.known.trust(host: "127.0.0.1", port: testTargetPort, algorithm: "ssh-ed25519",
                           keyBase64: Data(repeating: 7, count: 51).base64EncodedString())
         do {
             _ = try await SSHConnection.connect(chain: [target(.password("tester-pass"))], trust: trust)
@@ -184,7 +188,7 @@ final class SSHIntegrationTests: XCTestCase {
         let trust = MemoryTrust(accept: true)
         let k = try key("client_ed25519")
         let chain = [
-            SSHHop(host: "127.0.0.1", port: 2222, username: "tester", credential: .privateKey(k, passphrase: nil)),
+            SSHHop(host: "127.0.0.1", port: testJumpPort, username: "tester", credential: .privateKey(k, passphrase: nil)),
             SSHHop(host: "inner", port: 22, username: "tester", credential: .password("tester-pass")),
         ]
         let conn = try await SSHConnection.connect(chain: chain, trust: trust)
@@ -192,7 +196,7 @@ final class SSHIntegrationTests: XCTestCase {
         XCTAssertFalse(name.isEmpty)
         // Both hops were verified, each under its own endpoint name.
         XCTAssertEqual(trust.prompted.count, 2)
-        XCTAssertEqual(trust.known.keys.map(\.endpoint).sorted(), ["127.0.0.1:2222", "inner:22"])
+        XCTAssertEqual(trust.known.keys.map(\.endpoint).sorted(), ["127.0.0.1:\(testJumpPort)", "inner:22"])
         await conn.close()
     }
 
@@ -221,11 +225,11 @@ final class SSHIntegrationTests: XCTestCase {
     /// A server that stops answering (container paused, like a dead network)
     /// must time out instead of hanging. Needs docker; skipped otherwise.
     func testUnresponsiveServerTimesOut() async throws {
-        // The container behind port 2022 (compose names it differently per tool).
+        // The container behind the target port (compose names it differently per tool).
         // podman's docker shim ignores --filter publish, so match the ports column.
-        guard let line = dockerOutput("ps", "--format", "{{.ID}} {{.Ports}}", match: ":2022->"),
+        guard let line = dockerOutput("ps", "--format", "{{.ID}} {{.Ports}}", match: ":\(testTargetPort)->"),
               let name = line.split(separator: " ").first.map(String.init)
-        else { throw XCTSkip("no docker container on port 2022") }
+        else { throw XCTSkip("no docker container on port \(testTargetPort)") }
         defer { _ = docker("unpause", name) }
         let (conn, _, _) = try await openShell()
         XCTAssertTrue(docker("pause", name))
