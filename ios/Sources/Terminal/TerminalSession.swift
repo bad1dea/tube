@@ -10,6 +10,8 @@ final class TerminalSession: ObservableObject, Identifiable {
         case connecting
         case connected
         case disconnected(String?)
+        /// No saved password, or the saved one was rejected: ask, then retry.
+        case needsPassword(hostID: UUID, destination: String, rejected: Bool)
     }
 
     let id = UUID()
@@ -55,10 +57,15 @@ final class TerminalSession: ObservableObject, Identifiable {
         case .connecting: return "ellipsis"
         case .connected: return "terminal"
         case .disconnected: return "bolt.horizontal.circle"
+        case .needsPassword: return "key"
         }
     }
 
-    func connect() {
+    /// Passwords typed into the prompt for this session, by host id.
+    private var typedPasswords: [UUID: String] = [:]
+
+    func connect(password: String? = nil, for passwordHost: UUID? = nil) {
+        if let password, let passwordHost { typedPasswords[passwordHost] = password }
         guard let store, let host = store.host(hostID) else {
             state = .disconnected("Host was deleted")
             return
@@ -67,8 +74,13 @@ final class TerminalSession: ObservableObject, Identifiable {
         state = .connecting
         view.feed(text: "\r\nConnecting to \(host.destination)...\r\n")
         let chain: [SSHHop]
+        let hosts: [Host]
         do {
-            chain = try store.chain(for: host)
+            hosts = try store.chainHosts(for: host)
+            chain = try store.chain(for: host, passwords: typedPasswords)
+        } catch ChainError.noCredential(let id, _) {
+            askPassword(for: id, rejected: false)
+            return
         } catch {
             fail(error)
             return
@@ -84,10 +96,25 @@ final class TerminalSession: ObservableObject, Identifiable {
                 try await shell.start(on: conn, cols: cols, rows: rows)
                 self.attach(conn, shell)
                 store.markConnected(host.id)
+            } catch SSHConnectError.authenticationFailed(let h, let p, let u) {
+                // Ask again only for a host that logs in with a password.
+                if let rejected = hosts.first(where: { $0.hostname == h && $0.port == p && $0.username == u }),
+                   rejected.identityID == nil {
+                    self.typedPasswords[rejected.id] = nil
+                    self.askPassword(for: rejected.id, rejected: true)
+                } else {
+                    self.fail(SSHConnectError.authenticationFailed(host: h, port: p, user: u))
+                }
             } catch {
                 self.fail(error)
             }
         }
+    }
+
+    private func askPassword(for id: UUID, rejected: Bool) {
+        teardown()
+        let dest = store?.host(id)?.destination ?? "host"
+        state = .needsPassword(hostID: id, destination: dest, rejected: rejected)
     }
 
     private func attach(_ conn: SSHConnection, _ shell: ShellSession) {
@@ -112,7 +139,8 @@ final class TerminalSession: ObservableObject, Identifiable {
             self?.remoteClosed()
         }
         let t = view.getTerminal()
-        Task { try? await shell.resize(cols: t.cols, rows: t.rows) }
+        lastSentSize = (0, 0)
+        sendSize(cols: t.cols, rows: t.rows)
         detectOS(conn)
     }
 
@@ -225,10 +253,21 @@ final class TerminalSession: ObservableObject, Identifiable {
 
 extension TerminalSession: TerminalViewDelegate {
     nonisolated func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-        Task { @MainActor in
-            try? await self.shell?.resize(cols: newCols, rows: newRows)
-        }
+        Task { @MainActor in self.sendSize(cols: newCols, rows: newRows) }
     }
+
+    /// A terminal view that is off screen (another session selected) or mid
+    /// layout can measure as a few cells or zero. Sending that as a window
+    /// change makes full-screen programs redraw for nothing, and tmux has
+    /// crashed on degenerate sizes, so only real sizes go to the server.
+    func sendSize(cols: Int, rows: Int) {
+        guard cols >= 20, rows >= 5, view.window != nil else { return }
+        guard cols != lastSentSize.cols || rows != lastSentSize.rows else { return }
+        lastSentSize = (cols, rows)
+        Task { try? await self.shell?.resize(cols: cols, rows: rows) }
+    }
+
+    private var lastSentSize = (cols: 0, rows: 0)
 
     nonisolated func setTerminalTitle(source: TerminalView, title: String) {
         Task { @MainActor in

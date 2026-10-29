@@ -88,7 +88,7 @@ final class SessionManager: ObservableObject {
 
     private func refreshLiveActivity() {
         liveActivity.update(sessions.map {
-            .init(title: $0.title, osID: store.host($0.hostID)?.osID, connected: $0.state == .connected)
+            .init(title: label(for: $0), osID: store.host($0.hostID)?.osID, connected: $0.state == .connected)
         })
     }
 
@@ -137,6 +137,15 @@ final class SessionManager: ObservableObject {
 
     func showHosts() {
         terminalPresented = false
+    }
+
+    /// Host name, numbered when several sessions go to the same host; the
+    /// terminal's own title (often "user@host:~") cannot tell them apart.
+    func label(for s: TerminalSession) -> String {
+        let name = store.host(s.hostID)?.displayName ?? s.title
+        let same = sessions.filter { $0.hostID == s.hostID }
+        guard same.count > 1, let i = same.firstIndex(where: { $0.id == s.id }) else { return name }
+        return "\(name) \(i + 1)"
     }
 
     func isOpen(_ hostID: UUID) -> Bool {

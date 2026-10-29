@@ -157,16 +157,24 @@ final class AppStore: ObservableObject {
     }
 
     /// Jump hosts first, target last. Fails on a missing or cyclic hop.
-    func chain(for host: Host) throws -> [SSHHop] {
-        var hops: [SSHHop] = []
+    /// Hosts in connection order: jump hosts first, target last.
+    func chainHosts(for host: Host) throws -> [Host] {
+        var out: [Host] = []
         var seen: Set<UUID> = [host.id]
         for id in host.jumpHostIDs {
             guard let j = self.host(id) else { throw ChainError.missingJumpHost }
             guard seen.insert(id).inserted else { throw ChainError.cycle }
-            hops.append(SSHHop(host: j.hostname, port: j.port, username: j.username, credential: try credential(for: j)))
+            out.append(j)
         }
-        hops.append(SSHHop(host: host.hostname, port: host.port, username: host.username, credential: try credential(for: host)))
-        return hops
+        return out + [host]
+    }
+
+    /// `passwords` are typed for this attempt and win over saved ones.
+    func chain(for host: Host, passwords: [UUID: String] = [:]) throws -> [SSHHop] {
+        try chainHosts(for: host).map { h in
+            SSHHop(host: h.hostname, port: h.port, username: h.username,
+                   credential: try passwords[h.id].map { .password($0) } ?? credential(for: h))
+        }
     }
 
     func credential(for host: Host) throws -> SSHCredential {
@@ -177,7 +185,7 @@ final class AppStore: ObservableObject {
         if let pw = Keychain.string(for: .hostPassword(host.id)) {
             return .password(pw)
         }
-        throw ChainError.noCredential(host.displayName)
+        throw ChainError.noCredential(host.id, host.displayName)
     }
 
     // MARK: Identities
@@ -225,14 +233,14 @@ enum ChainError: Error, CustomStringConvertible {
     case missingJumpHost
     case cycle
     case missingKey(String)
-    case noCredential(String)
+    case noCredential(UUID, String)
 
     var description: String {
         switch self {
         case .missingJumpHost: return "A jump host for this connection was deleted"
         case .cycle: return "Jump hosts form a loop"
         case .missingKey(let h): return "Private key for \(h) is missing from the Keychain"
-        case .noCredential(let h): return "No password or identity set for \(h)"
+        case .noCredential(_, let h): return "No password or identity set for \(h)"
         }
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 import TubeCore
 
 struct TerminalScreen: View {
@@ -74,6 +75,13 @@ struct SessionStatusOverlay: View {
                 Spacer()
             }
             .padding(.top, 8)
+        case .needsPassword(let hostID, let destination, let rejected):
+            VStack {
+                Spacer()
+                PasswordPrompt(session: session, hostID: hostID, destination: destination, rejected: rejected)
+                    .id(hostID.uuidString + (rejected ? "r" : ""))
+                    .padding()
+            }
         case .disconnected(let reason):
             VStack {
                 Spacer()
@@ -96,6 +104,57 @@ struct SessionStatusOverlay: View {
                 .padding()
             }
         }
+    }
+}
+
+/// Asked when a host has no saved password or the saved one was rejected.
+struct PasswordPrompt: View {
+    @ObservedObject var session: TerminalSession
+    let hostID: UUID
+    let destination: String
+    let rejected: Bool
+    @EnvironmentObject var store: AppStore
+    @EnvironmentObject var sessions: SessionManager
+    @State private var password = ""
+    @State private var save = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(rejected ? "Wrong password" : "Password").font(.headline)
+            Text(destination).font(.caption.monospaced()).foregroundStyle(.secondary)
+            SecureField("Password", text: $password)
+                .textContentType(.password)
+                .focused($focused)
+                .submitLabel(.go)
+                .onSubmit(submit)
+                .padding(8)
+                .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 6))
+                .accessibilityIdentifier("sessionPassword")
+            Toggle("Save to vault", isOn: $save)
+                .font(.subheadline)
+            HStack {
+                Button("Connect", action: submit)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(password.isEmpty)
+                Button("Close", role: .destructive) { sessions.close(session.id) }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 480, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .onAppear { focused = true }
+    }
+
+    private func submit() {
+        guard !password.isEmpty else { return }
+        if save, let h = store.host(hostID) {
+            // Saved only once it is typed; a wrong one is replaced on the next prompt.
+            store.upsert(h, password: password)
+        }
+        session.connect(password: password, for: hostID)
+        _ = session.view.becomeFirstResponder()
     }
 }
 
@@ -130,7 +189,16 @@ final class TerminalHostController: UIViewController {
         self.sessions = sessions
         super.init(nibName: nil, bundle: nil)
         sessions.keyboard.onToggleInputMode = { [weak self] in self?.toggleInputMode() }
+        // Switch views on every selection change, including taps in the
+        // keyboard's session strip that do not re-render the SwiftUI screen.
+        // $activeID emits before the property changes, so use the value.
+        activeWatcher = sessions.$activeID.receive(on: RunLoop.main).sink { [weak self] id in
+            guard let self else { return }
+            self.show(self.sessions.sessions.first { $0.id == id })
+        }
     }
+
+    private var activeWatcher: AnyCancellable?
 
     required init?(coder: NSCoder) { fatalError("not used") }
 

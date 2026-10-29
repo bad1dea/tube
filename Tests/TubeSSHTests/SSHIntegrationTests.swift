@@ -11,8 +11,12 @@ final class MemoryTrust: HostKeyTrustStore, @unchecked Sendable {
     var known = KnownHosts()
     var accept: Bool
     var prompted: [String] = []
+    var thinkSeconds: Double = 0
 
-    init(accept: Bool) { self.accept = accept }
+    init(accept: Bool, thinkSeconds: Double = 0) {
+        self.accept = accept
+        self.thinkSeconds = thinkSeconds
+    }
 
     func check(host: String, port: Int, algorithm: String, keyBase64: String) -> HostKeyCheck {
         known.check(host: host, port: port, algorithm: algorithm, keyBase64: keyBase64)
@@ -20,6 +24,7 @@ final class MemoryTrust: HostKeyTrustStore, @unchecked Sendable {
 
     func confirmUnknown(host: String, port: Int, algorithm: String, keyBase64: String, fingerprint: String) async -> Bool {
         prompted.append(fingerprint)
+        if thinkSeconds > 0 { try? await Task.sleep(nanoseconds: UInt64(thinkSeconds * 1e9)) }
         if accept { known.trust(host: host, port: port, algorithm: algorithm, keyBase64: keyBase64) }
         return accept
     }
@@ -62,13 +67,27 @@ final class SSHIntegrationTests: XCTestCase {
         await conn2.close()
     }
 
+    /// Reading a fingerprint takes people longer than Citadel's 10 s login
+    /// timeout; the prompt must not count against it.
+    func testSlowHostKeyDecisionStillConnects() async throws {
+        let trust = MemoryTrust(accept: true, thinkSeconds: 12)
+        let conn = try await SSHConnection.connect(chain: [target(.password("tester-pass"))], trust: trust)
+        let out = try await conn.run("echo late-ok")
+        XCTAssertEqual(out, "late-ok\n")
+        XCTAssertEqual(trust.prompted.count, 1)
+        await conn.close()
+    }
+
     func testWrongPasswordFails() async throws {
         let trust = MemoryTrust(accept: true)
         do {
             let c = try await SSHConnection.connect(chain: [target(.password("nope"))], trust: trust)
             await c.close()
             XCTFail("connected with wrong password")
-        } catch {}
+        } catch let e as SSHConnectError {
+            // The app re-prompts for this host's password on this error.
+            XCTAssertEqual(e, .authenticationFailed(host: "127.0.0.1", port: 2022, user: "tester"))
+        }
     }
 
     func testRejectedHostKeyDoesNotConnect() async throws {

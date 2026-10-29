@@ -31,6 +31,7 @@ public enum SSHConnectError: Error, Equatable, CustomStringConvertible {
     case hostKeyChanged(host: String, port: Int, expected: String, presented: String)
     case unsupportedKey(String)
     case badPassphrase
+    case authenticationFailed(host: String, port: Int, user: String)
 
     public var description: String {
         switch self {
@@ -39,6 +40,7 @@ public enum SSHConnectError: Error, Equatable, CustomStringConvertible {
             return "Host key for \(h):\(p) changed. Expected \(e), server presented \(pr)"
         case .unsupportedKey(let t): return "Unsupported private key: \(t)"
         case .badPassphrase: return "Wrong passphrase for private key"
+        case .authenticationFailed(let h, let p, let u): return "\(u)@\(h):\(p) rejected the password or key"
         }
     }
 }
@@ -56,6 +58,7 @@ final class HostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecke
     let port: Int
     let store: HostKeyTrustStore
     private(set) var failure: SSHConnectError?
+    private(set) var unknownKey: (algorithm: String, keyBase64: String, fingerprint: String)?
 
     init(host: String, port: Int, store: HostKeyTrustStore) {
         self.host = host
@@ -78,16 +81,11 @@ final class HostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecke
             failure = err
             validationCompletePromise.fail(err)
         case .unknown(let fp):
-            let store = self.store, host = self.host, port = self.port
-            Task {
-                if await store.confirmUnknown(host: host, port: port, algorithm: algorithm, keyBase64: blob, fingerprint: fp) {
-                    validationCompletePromise.succeed(())
-                } else {
-                    let err = SSHConnectError.hostKeyRejected(host: host, port: port)
-                    self.failure = err
-                    validationCompletePromise.fail(err)
-                }
-            }
+            // Citadel gives the whole handshake a fixed 10 s login timeout, so
+            // asking the user here would race it. Abort this attempt and let
+            // connect() ask with no clock running, then reconnect.
+            unknownKey = (algorithm, blob, fp)
+            validationCompletePromise.fail(SSHConnectError.hostKeyRejected(host: host, port: port))
         }
     }
 }
@@ -176,21 +174,35 @@ public final class SSHConnection: @unchecked Sendable {
         do {
             for hop in chain {
                 let auth = try SSHKeys.authentication(username: hop.username, credential: hop.credential)
-                let delegate = HostKeyDelegate(host: hop.host, port: hop.port, store: trust)
-                var settings = SSHClientSettings(host: hop.host, port: hop.port,
-                                                 authenticationMethod: { auth },
-                                                 hostKeyValidator: .custom(delegate))
-                settings.connectTimeout = timeout
-                do {
-                    if let previous = clients.last {
-                        clients.append(try await previous.jump(to: settings))
-                    } else {
-                        clients.append(try await SSHClient.connect(to: settings))
+                // Second pass only happens after the user trusted a new key.
+                for attempt in 0..<2 {
+                    let delegate = HostKeyDelegate(host: hop.host, port: hop.port, store: trust)
+                    var settings = SSHClientSettings(host: hop.host, port: hop.port,
+                                                     authenticationMethod: { auth },
+                                                     hostKeyValidator: .custom(delegate))
+                    settings.connectTimeout = timeout
+                    do {
+                        if let previous = clients.last {
+                            clients.append(try await previous.jump(to: settings))
+                        } else {
+                            clients.append(try await SSHClient.connect(to: settings))
+                        }
+                        break
+                    } catch {
+                        // NIO wraps the promise failure; surface our own reason.
+                        if let f = delegate.failure { throw f }
+                        if case SSHClientError.allAuthenticationOptionsFailed = error {
+                            throw SSHConnectError.authenticationFailed(host: hop.host, port: hop.port, user: hop.username)
+                        }
+                        if attempt == 0, let k = delegate.unknownKey {
+                            guard await trust.confirmUnknown(host: hop.host, port: hop.port, algorithm: k.algorithm,
+                                                             keyBase64: k.keyBase64, fingerprint: k.fingerprint) else {
+                                throw SSHConnectError.hostKeyRejected(host: hop.host, port: hop.port)
+                            }
+                            continue
+                        }
+                        throw error
                     }
-                } catch {
-                    // NIO wraps the promise failure; surface our own reason.
-                    if let f = delegate.failure { throw f }
-                    throw error
                 }
             }
         } catch {

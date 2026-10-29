@@ -295,7 +295,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
         for s in sessions.sessions {
             let active = s.id == sessions.activeID
             var config = active ? UIButton.Configuration.tinted() : UIButton.Configuration.gray()
-            config.title = s.title
+            config.title = sessions.label(for: s)
             config.titleLineBreakMode = .byTruncatingTail
             config.cornerStyle = .medium
             config.buttonSize = .small
@@ -304,7 +304,7 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
             config.imagePlacement = .leading
             let b = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in self?.sessions.select(s.id) })
             b.widthAnchor.constraint(lessThanOrEqualToConstant: 170).isActive = true
-            b.accessibilityLabel = "Session \(s.title)"
+            b.accessibilityLabel = "Session \(sessions.label(for: s))"
             b.accessibilityTraits = active ? [.button, .selected] : .button
             b.menu = UIMenu(children: [
                 UIAction(title: "Reconnect", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in self?.sessions.reconnect(s.id) },

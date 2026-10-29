@@ -338,6 +338,7 @@ struct HostRow: View {
 struct SessionRow: View {
     @ObservedObject var session: TerminalSession
     let host: Host?
+    @EnvironmentObject var sessions: SessionManager
 
     var body: some View {
         HStack(spacing: 12) {
@@ -349,7 +350,7 @@ struct SessionRow: View {
                         .offset(x: 3, y: 3)
                 }
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.title).font(.body.weight(.medium)).lineLimit(1)
+                Text(sessions.label(for: session)).font(.body.weight(.medium)).lineLimit(1)
                 Text(host?.destination ?? "").font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()

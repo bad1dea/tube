@@ -11,3 +11,6 @@ LogLevel VERBOSE
 # Tests open many short connections that never authenticate (banner reads
 # through forwards); OpenSSH 9.8+ would start stalling them.
 PerSourcePenalties no
+# The suite opens many short unauthenticated connections in a burst; the
+# default 10:30:100 starts dropping them at random.
+MaxStartups 200
