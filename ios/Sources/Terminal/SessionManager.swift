@@ -26,6 +26,7 @@ final class SessionManager: ObservableObject {
     /// Last connection error per host, for the badge in the host list.
     @Published private(set) var failures: [UUID: String] = [:]
     private var stateWatchers: [UUID: AnyCancellable] = [:]
+    private var forwarders: [UUID: AnyCancellable] = [:]
 
     struct PasswordRequest: Identifiable {
         let id = UUID()
@@ -73,11 +74,11 @@ final class SessionManager: ObservableObject {
             }
         }
         // Forward per-session changes (title, state) so the tab strip redraws.
-        Task { [weak self, weak s] in
-            guard let s else { return }
-            for await _ in s.objectWillChange.values {
-                self?.objectWillChange.send()
-            }
+        // A sink, not `for await in .values`: AsyncPublisher traps when the
+        // session publishes again before the loop asks for the next value,
+        // which typing does on every key.
+        forwarders[s.id] = s.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
         }
     }
 
@@ -115,6 +116,7 @@ final class SessionManager: ObservableObject {
         guard let i = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[i].close()
         stateWatchers[id] = nil
+        forwarders[id] = nil
         sessions.remove(at: i)
         if activeID == id {
             activeID = sessions.indices.contains(i) ? sessions[i].id : sessions.last?.id
