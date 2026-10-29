@@ -1,5 +1,6 @@
 import SwiftUI
 import LocalAuthentication
+import TubeCore
 
 /// Launch environment TUBE_UITEST=1 (set by UITests/TubeUITests.swift) starts
 /// from a throwaway data file with sample hosts, one of them real.
