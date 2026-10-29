@@ -94,7 +94,13 @@ final class SessionWorkflowTests: XCTestCase {
         XCTAssertTrue(usedBy.waitForExistence(timeout: 30), "key install did not finish")
         shot("k02-installed")
         app.navigationBars.buttons.firstMatch.tap()
-        tap("Done")
+        if app.buttons["Done"].waitForExistence(timeout: 3) { app.buttons["Done"].tap() }
+        let hosts = app.navigationBars["Tube"]
+        XCTAssertTrue(hosts.waitForExistence(timeout: 5))
+        sleep(2)
+        for _ in 0..<6 where !app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'runner,'")).firstMatch.isHittable {
+            app.swipeDown()
+        }
 
         connect("runner,")
         run("mkdir -p ~/c && touch ~/c/ok-key-login")
