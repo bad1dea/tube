@@ -20,7 +20,7 @@ struct SnippetsView: View {
             .onDelete { store.data.snippets.remove(atOffsets: $0) }
             .onMove { store.data.snippets.move(fromOffsets: $0, toOffset: $1) }
             if store.data.snippets.isEmpty {
-                Text("Snippets run from the terminal key panel. Use {{name}} for values asked at run time.")
+                Text("Run snippets from the key panel during a session. Put {{name}} where you want to fill something in each time.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -30,7 +30,7 @@ struct SnippetsView: View {
             ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             ToolbarItem(placement: .primaryAction) {
                 Button { editing = Snippet(name: "", command: "") } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("Add snippet")
+                    .accessibilityLabel("Add Snippet")
             }
         }
         .sheet(item: $editing) { s in
@@ -55,12 +55,12 @@ struct SnippetEditView: View {
                     .autocorrectionDisabled()
             } footer: {
                 if !snippet.variables.isEmpty {
-                    Text("Asks for: " + snippet.variables.joined(separator: ", "))
+                    Text("You’ll be asked for: " + snippet.variables.joined(separator: ", "))
                 }
             }
-            Toggle("Press return after inserting", isOn: $snippet.runImmediately)
+            Toggle("Press Return After Inserting", isOn: $snippet.runImmediately)
         }
-        .navigationTitle(snippet.name.isEmpty ? "New snippet" : snippet.name)
+        .navigationTitle(snippet.name.isEmpty ? "New Snippet" : snippet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

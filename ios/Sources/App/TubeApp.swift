@@ -201,16 +201,16 @@ struct HostKeyPrompt: View {
             Form {
                 Section {
                     LabeledContent("Host", value: "\(question.host):\(question.port)")
-                    LabeledContent("Key type", value: question.algorithm)
+                    LabeledContent("Key Type", value: question.algorithm)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Fingerprint").font(.caption).foregroundStyle(.secondary)
                         Text(question.fingerprint).font(.callout.monospaced()).textSelection(.enabled)
                     }
                 } footer: {
-                    Text("First connection to this host. Compare the fingerprint with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the server before trusting it.")
+                    Text("You haven’t connected to this server before. If you can, check that the fingerprint matches the one the server shows for `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`, then tap Trust.")
                 }
             }
-            .navigationTitle("Unknown host key")
+            .navigationTitle("Trust This Server?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { answer(false) } }

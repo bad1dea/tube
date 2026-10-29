@@ -31,7 +31,7 @@ struct HostEditView: View {
         Form {
             Section {
                 TextField("Label", text: $host.label)
-                TextField("Host or IP", text: $host.hostname)
+                TextField("Host Name or IP", text: $host.hostname)
                     .textContentType(.URL)
                     .keyboardType(.URL)
                 TextField("Port", value: $host.port, format: .number.grouping(.never))
@@ -43,8 +43,8 @@ struct HostEditView: View {
             .autocorrectionDisabled()
 
             Section("Authentication") {
-                Picker("Identity", selection: $host.identityID) {
-                    Text("None (password)").tag(UUID?.none)
+                Picker("Key", selection: $host.identityID) {
+                    Text("None (Use Password)").tag(UUID?.none)
                     ForEach(store.data.identities) { i in
                         Text(i.label).tag(Optional(i.id))
                     }
@@ -53,7 +53,7 @@ struct HostEditView: View {
                     .textContentType(.password)
                     .onChange(of: password) { passwordChanged = true }
                 if host.hasPassword {
-                    Button("Remove saved password", role: .destructive) {
+                    Button("Remove Saved Password", role: .destructive) {
                         password = ""
                         passwordChanged = true
                         host.hasPassword = false
@@ -71,15 +71,15 @@ struct HostEditView: View {
                                 Text(j.destination).font(.caption.monospaced()).foregroundStyle(.secondary)
                             }
                         } else {
-                            Text("Deleted host").foregroundStyle(.red)
+                            Text("Host deleted").foregroundStyle(.red)
                         }
                     }
                 }
                 .onDelete { host.jumpHostIDs.remove(atOffsets: $0) }
                 .onMove { host.jumpHostIDs.move(fromOffsets: $0, toOffset: $1) }
-                Button { addingJump = true } label: { Label("Add jump host", systemImage: "plus") }
+                Button { addingJump = true } label: { Label("Add Jump Host", systemImage: "plus") }
             } header: {
-                Text("Jump hosts")
+                Text("Jump Hosts")
             } footer: {
                 Text(chainDescription).font(.caption.monospaced())
             }
@@ -91,7 +91,7 @@ struct HostEditView: View {
                     ForEach(store.data.groups) { g in Text(g.name).tag(Optional(g.id)) }
                 }
                 HStack {
-                    TextField("New group", text: $newGroup)
+                    TextField("New Group", text: $newGroup)
                     Button("Add") {
                         let g = HostGroup(name: newGroup.trimmingCharacters(in: .whitespaces))
                         store.data.groups.append(g)
@@ -100,13 +100,13 @@ struct HostEditView: View {
                     }
                     .disabled(newGroup.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                TextField("Tags (space separated)", text: $tagText)
+                TextField("Tags, separated by spaces", text: $tagText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
 
             Section("Terminal") {
-                Toggle("Custom settings for this host", isOn: $overrideTerminal)
+                Toggle("Custom Settings for This Host", isOn: $overrideTerminal)
                 if overrideTerminal {
                     Picker("Theme", selection: terminalBinding.themeName) {
                         ForEach(TerminalTheme.all) { Text($0.name).tag($0.name) }
@@ -115,7 +115,7 @@ struct HostEditView: View {
                         ForEach(TerminalFonts.names, id: \.self) { Text($0).tag($0) }
                     }
                     Stepper("Size \(Int(terminalBinding.wrappedValue.fontSize))", value: terminalBinding.fontSize, in: 8...32)
-                    Toggle("Backspace sends ^H", isOn: terminalBinding.backspaceSendsControlH)
+                    Toggle("Backspace Sends ^H", isOn: terminalBinding.backspaceSendsControlH)
                 }
             }
 
@@ -124,7 +124,7 @@ struct HostEditView: View {
                     .lineLimit(3...8)
             }
         }
-        .navigationTitle(isNew ? "New host" : host.displayName)
+        .navigationTitle(isNew ? "New Host" : host.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -146,10 +146,10 @@ struct HostEditView: View {
                 .overlay {
                     if store.data.hosts.count < 2 {
                         ContentUnavailableView("No other hosts", systemImage: "server.rack",
-                                               description: Text("Save the bastion as a host first, then pick it here."))
+                                               description: Text("Add the jump host as a normal host first, then pick it here."))
                     }
                 }
-                .navigationTitle("Jump host")
+                .navigationTitle("Jump Host")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { addingJump = false } } }
             }

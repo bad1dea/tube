@@ -103,22 +103,22 @@ struct HostListView: View {
             }
             if store.data.hosts.isEmpty {
                 Section {
-                    Button { newHost() } label: { Label("Add host", systemImage: "plus") }
-                    Button { sheet = .importConfig } label: { Label("Import ~/.ssh/config", systemImage: "square.and.arrow.down") }
-                    Button { sheet = .sync } label: { Label("Restore from sync", systemImage: "arrow.triangle.2.circlepath") }
+                    Button { newHost() } label: { Label("Add Host", systemImage: "plus") }
+                    Button { sheet = .importConfig } label: { Label("Import from SSH Config", systemImage: "square.and.arrow.down") }
+                    Button { sheet = .sync } label: { Label("Restore from Sync", systemImage: "arrow.triangle.2.circlepath") }
                 } header: {
                     Text("Hosts")
                 } footer: {
-                    Text("Or type user@host above and press Connect.")
+                    Text("Or type user@host above and tap Connect.")
                 }
             }
 
             if search.isEmpty {
                 Section("Library") {
-                    libraryRow("Keys", "key.fill", .orange, count: store.data.identities.count) { sheet = .identities }
+                    libraryRow("SSH Keys", "key.fill", .orange, count: store.data.identities.count) { sheet = .identities }
                     libraryRow("Snippets", "curlybraces", .purple, count: store.data.snippets.count) { sheet = .snippets }
                     libraryRow("Tunnels", "point.3.connected.trianglepath.dotted", .teal, count: store.data.forwards.count) { sheet = .tunnels }
-                    libraryRow("Known hosts", "checkmark.shield.fill", .green, count: store.data.knownHosts.keys.count) { sheet = .knownHosts }
+                    libraryRow("Known Hosts", "checkmark.shield.fill", .green, count: store.data.knownHosts.keys.count) { sheet = .knownHosts }
                     libraryRow("Sync", "arrow.triangle.2.circlepath", .blue, detail: sync.enabled ? "On" : "Off") { sheet = .sync }
                     libraryRow("Settings", "gearshape.fill", .gray) { sheet = .settings }
                 }
@@ -130,14 +130,14 @@ struct HostListView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button { newHost() } label: { Label("New host", systemImage: "server.rack") }
-                    Button { sheet = .importConfig } label: { Label("Import / export ssh_config", systemImage: "doc.text") }
+                    Button { newHost() } label: { Label("New Host", systemImage: "server.rack") }
+                    Button { sheet = .importConfig } label: { Label("Import or Export SSH Config", systemImage: "doc.text") }
                 } label: {
                     Image(systemName: "plus")
                 } primaryAction: {
                     newHost()
                 }
-                .accessibilityLabel("Add host")
+                .accessibilityLabel("Add Host")
                 .keyboardShortcut("n", modifiers: .command)
             }
         }
@@ -256,10 +256,10 @@ struct HostListView: View {
                 store.upsert(copy, password: nil)
             } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
             Button { UIPasteboard.general.string = "ssh -p \(host.port) \(host.username)@\(host.hostname)" } label: {
-                Label("Copy ssh command", systemImage: "doc.on.doc")
+                Label("Copy SSH Command", systemImage: "doc.on.doc")
             }
             if let f = sessions.failures[host.id] {
-                Button { UIPasteboard.general.string = f } label: { Label("Copy last error", systemImage: "exclamationmark.circle") }
+                Button { UIPasteboard.general.string = f } label: { Label("Copy Last Error", systemImage: "exclamationmark.circle") }
             }
             Button(role: .destructive) { store.delete(host: host.id) } label: { Label("Delete", systemImage: "trash") }
         }
@@ -322,7 +322,7 @@ struct HostRow: View {
             Spacer(minLength: 4)
             if failure != nil {
                 Image(systemName: "exclamationmark.circle").foregroundStyle(.red)
-                    .accessibilityLabel("Last connection failed")
+                    .accessibilityLabel("Last Connection Failed")
             } else if open {
                 Circle().fill(.green).frame(width: 8, height: 8).accessibilityLabel("Connected")
             } else if let last = host.lastConnected {
@@ -375,7 +375,7 @@ struct HostPicker: View {
                 .foregroundStyle(.primary)
             }
             .searchable(text: $search)
-            .navigationTitle("New session")
+            .navigationTitle("New Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }

@@ -98,7 +98,7 @@ struct TunnelsView: View {
             Section {
                 EmptyView()
             } footer: {
-                Text("Forwards run while Tube is in the foreground. iOS suspends the app shortly after you switch away, which closes them.")
+                Text("Tunnels stay open while Tube is on screen. iOS pauses apps soon after you switch away, which closes them.")
             }
         }
         .navigationTitle("Tunnels")
@@ -112,7 +112,7 @@ struct TunnelsView: View {
                     }
                 } label: { Image(systemName: "plus") }
                 .disabled(store.data.hosts.isEmpty)
-                .accessibilityLabel("Add tunnel")
+                .accessibilityLabel("Add Tunnel")
             }
         }
         .sheet(item: $editing) { f in NavigationStack { TunnelEditView(forward: f) } }

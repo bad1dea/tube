@@ -179,7 +179,7 @@ struct FilesView: View {
                         Button("Rename") { renaming = f; renameText = f.name }.tint(.gray)
                     }
                     .contextMenu {
-                        Button { UIPasteboard.general.string = f.path } label: { Label("Copy path", systemImage: "doc.on.doc") }
+                        Button { UIPasteboard.general.string = f.path } label: { Label("Copy Path", systemImage: "doc.on.doc") }
                         if !f.isDirectory {
                             Button { Task { await model.download(f) } } label: { Label("Download", systemImage: "arrow.down.circle") }
                         }
@@ -211,7 +211,7 @@ struct FilesView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { askFolder = true } label: { Image(systemName: "folder.badge.plus") }
-                        .accessibilityLabel("New folder")
+                        .accessibilityLabel("New Folder")
                     Button { importing = true } label: { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Upload")
                 }
@@ -220,7 +220,7 @@ struct FilesView: View {
                 guard case .success(let urls) = r else { return }
                 Task { for u in urls { await model.upload(u) } }
             }
-            .alert("New folder", isPresented: $askFolder) {
+            .alert("New Folder", isPresented: $askFolder) {
                 TextField("Name", text: $newFolder).textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button("Create") { Task { await model.mkdir(newFolder); newFolder = "" } }
                 Button("Cancel", role: .cancel) {}

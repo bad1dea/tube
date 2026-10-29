@@ -19,24 +19,24 @@ struct SyncView: View {
             if let c = sync.credentials {
                 Section {
                     LabeledContent("Server", value: c.serverURL.absoluteString)
-                    LabeledContent("Vault") {
+                    LabeledContent("Vault ID") {
                         Text(c.vaultID).font(.caption.monospaced()).textSelection(.enabled)
                     }
-                    LabeledContent("Key epoch", value: "\(c.epoch)")
+                    LabeledContent("Key Version", value: "\(c.epoch)")
                     if let last = store.data.sync.lastSync {
-                        LabeledContent("Last sync") { Text(last, style: .relative) }
+                        LabeledContent("Last Sync") { Text(last, style: .relative) }
                     }
                     Button {
                         Task { await sync.syncNow() }
                     } label: {
                         HStack {
-                            Text("Sync now")
+                            Text("Sync Now")
                             if sync.syncing { Spacer(); ProgressView() }
                         }
                     }
                     .disabled(sync.syncing)
                 }
-                Section("Add a device") {
+                Section("Add a Device") {
                     PairingCodeView()
                 }
                 Section {
@@ -57,21 +57,21 @@ struct SyncView: View {
                 } header: {
                     Text("Devices")
                 } footer: {
-                    Text("Revoking a device also rotates the vault key, so it cannot read anything written afterwards.")
+                    Text("Removing a device also changes the vault key, so it can’t read anything new.")
                 }
                 Section {
-                    Button("Stop syncing on this device", role: .destructive) { sync.leave() }
+                    Button("Stop Syncing on This Device", role: .destructive) { sync.leave() }
                 } footer: {
                     Text("Local hosts and keys stay on this device.")
                 }
             } else {
                 Section {
-                    Text("Local only. Hosts, keys and snippets stay on this device.")
-                    Button("Create a vault on my server") { mode = .create }
-                    Button("Join with a pairing code") { mode = .join }
-                    Button("Recover with recovery key") { mode = .recover }
+                    Text("Sync is off. Your hosts, keys and snippets are only on this device.")
+                    Button("Create a Vault") { mode = .create }
+                    Button("Join with a Pairing Code") { mode = .join }
+                    Button("Recover with Recovery Key") { mode = .recover }
                 } footer: {
-                    Text("Sync needs a Tube sync server you run yourself (docker compose up -d). Everything is encrypted on this device before upload; the server cannot read it.")
+                    Text("Sync uses a Tube server you run yourself. Everything is encrypted on this device before it’s sent, so the server can’t read it.")
                 }
             }
             if let err = sync.lastError {
@@ -106,12 +106,12 @@ struct PairingCodeView: View {
                 HStack {
                     Button("Copy") { UIPasteboard.general.string = code }
                     Spacer()
-                    Text("Valid for 10 minutes, one device").font(.caption).foregroundStyle(.secondary)
+                    Text("Works once, for 10 minutes").font(.caption).foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
             }
         } else {
-            Button(working ? "Creating…" : "Show pairing code") {
+            Button(working ? "Creating…" : "Show Pairing Code") {
                 working = true
                 Task {
                     do { code = try await sync.invite() } catch { self.error = "\(error)" }
@@ -152,33 +152,33 @@ struct SyncSetupView: View {
             if let (rk, vault) = created {
                 Section {
                     Text(rk.displayString).font(.title3.monospaced()).textSelection(.enabled)
-                    LabeledContent("Vault") { Text(vault).font(.caption.monospaced()).textSelection(.enabled) }
-                    Button("Copy both") { UIPasteboard.general.string = "Tube vault \(vault)\nRecovery key \(rk.displayString)" }
-                    Toggle("I saved the recovery key somewhere safe", isOn: $savedKey)
+                    LabeledContent("Vault ID") { Text(vault).font(.caption.monospaced()).textSelection(.enabled) }
+                    Button("Copy Both") { UIPasteboard.general.string = "Tube vault \(vault)\nRecovery key \(rk.displayString)" }
+                    Toggle("I’ve Saved My Recovery Key", isOn: $savedKey)
                 } header: {
-                    Text("Recovery key")
+                    Text("Recovery Key")
                 } footer: {
-                    Text("Shown once. With it and the vault id you can restore on a new device if all your devices are lost. Without it, losing every device loses the vault.")
+                    Text("This is shown only once. With it and the vault ID you can restore everything on a new device. If you lose both this key and all your devices, synced data can’t be recovered.")
                 }
             } else {
                 switch mode {
                 case .create:
                     Section {
-                        TextField("Server URL", text: $server).keyboardType(.URL)
-                        SecureField("Registration token (if the server requires one)", text: $registration)
+                        TextField("Server Address", text: $server).keyboardType(.URL)
+                        SecureField("Registration Token (If Required)", text: $registration)
                     }
                 case .join:
                     Section {
                         TextField("tube://pair?...", text: $code, axis: .vertical).font(.caption.monospaced())
                         Button("Paste") { code = UIPasteboard.general.string ?? "" }
                     } footer: {
-                        Text("On a device that already syncs, open Sync and tap Show pairing code.")
+                        Text("On a device that already syncs, open Sync and tap Show Pairing Code.")
                     }
                 case .recover:
                     Section {
-                        TextField("Server URL", text: $server).keyboardType(.URL)
-                        TextField("Vault id", text: $vaultID).font(.body.monospaced())
-                        TextField("Recovery key", text: $recoveryKey).font(.body.monospaced())
+                        TextField("Server Address", text: $server).keyboardType(.URL)
+                        TextField("Vault ID", text: $vaultID).font(.body.monospaced())
+                        TextField("Recovery Key", text: $recoveryKey).font(.body.monospaced())
                     }
                 }
                 if let error { Section { Text(error).foregroundStyle(.red).font(.callout) } }
@@ -186,7 +186,7 @@ struct SyncSetupView: View {
         }
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
-        .navigationTitle(mode == .create ? "New vault" : mode == .join ? "Join" : "Recover")
+        .navigationTitle(mode == .create ? "New Vault" : mode == .join ? "Join" : "Recover")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(created != nil && !savedKey)
         .toolbar {

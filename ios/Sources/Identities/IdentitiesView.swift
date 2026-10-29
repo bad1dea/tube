@@ -24,20 +24,20 @@ struct IdentitiesView: View {
             }
             .onDelete { idx in idx.map { store.data.identities[$0].id }.forEach(store.delete(identity:)) }
             if store.data.identities.isEmpty {
-                Text("Generate an Ed25519 key or import an existing OpenSSH private key.")
+                Text("Make a new key, or import one you already use.")
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Identities")
+        .navigationTitle("SSH Keys")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button { generating = true } label: { Label("Generate Ed25519", systemImage: "wand.and.stars") }
-                    Button { importing = true } label: { Label("Import private key", systemImage: "square.and.arrow.down") }
+                    Button { generating = true } label: { Label("Generate New Key", systemImage: "wand.and.stars") }
+                    Button { importing = true } label: { Label("Import a Key", systemImage: "square.and.arrow.down") }
                 } label: { Image(systemName: "plus") }
-                .accessibilityLabel("Add identity")
+                .accessibilityLabel("Add Key")
             }
         }
         .sheet(isPresented: $generating) { NavigationStack { GenerateKeyView() } }
@@ -58,11 +58,11 @@ struct GenerateKeyView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } footer: {
-                Text("Creates an Ed25519 key on this device. The private key is stored in the Keychain and is not synced unless you enable it for this identity.")
+                Text("Makes a new key on this device. The private part stays in the Keychain and only syncs if you turn that on for this key.")
             }
             if let error { Text(error).foregroundStyle(.red) }
         }
-        .navigationTitle("Generate key")
+        .navigationTitle("New Key")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -104,20 +104,20 @@ struct ImportKeyView: View {
                 HStack {
                     Button("Paste") { keyText = UIPasteboard.general.string ?? "" }
                     Spacer()
-                    Button("Choose file") { picking = true }
+                    Button("Choose File") { picking = true }
                 }
                 .buttonStyle(.borderless)
             } header: {
-                Text("OpenSSH private key")
+                Text("Private Key")
             } footer: {
-                Text("Ed25519 and RSA keys in OpenSSH format (BEGIN OPENSSH PRIVATE KEY). Convert PEM keys with `ssh-keygen -p -f key`.")
+                Text("Paste a key that starts with “BEGIN OPENSSH PRIVATE KEY”. Older keys can be converted on a computer with `ssh-keygen -p -f <key>`.")
             }
             Section {
-                SecureField("Passphrase (if any)", text: $passphrase)
+                SecureField("Passphrase (Optional)", text: $passphrase)
             }
             if let error { Text(error).foregroundStyle(.red).font(.callout) }
         }
-        .navigationTitle("Import key")
+        .navigationTitle("Import Key")
         .navigationBarTitleDisplayMode(.inline)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.data, .text]) { result in
             guard case .success(let url) = result else { return }
@@ -153,17 +153,17 @@ struct IdentityDetailView: View {
 
     var body: some View {
         Form {
-            Section("Public key") {
+            Section("Public Key") {
                 Text(identity.publicKey).font(.caption.monospaced()).textSelection(.enabled)
-                Button(copied ? "Copied" : "Copy public key") {
+                Button(copied ? "Copied" : "Copy Public Key") {
                     UIPasteboard.general.string = identity.publicKey
                     copied = true
                 }
-                ShareLink(item: identity.publicKey) { Label("Share public key", systemImage: "square.and.arrow.up") }
+                ShareLink(item: identity.publicKey) { Label("Share Public Key", systemImage: "square.and.arrow.up") }
             }
             Section {
                 LabeledContent("Type", value: identity.algorithm.rawValue)
-                Toggle("Sync private key", isOn: Binding(
+                Toggle("Sync Private Key", isOn: Binding(
                     get: { store.data.identities.first { $0.id == identity.id }?.syncPrivateKey ?? false },
                     set: { v in
                         if let i = store.data.identities.firstIndex(where: { $0.id == identity.id }) {
@@ -171,20 +171,20 @@ struct IdentityDetailView: View {
                         }
                     }))
             } footer: {
-                Text("When on, the private key is included in end-to-end encrypted sync. The sync server only sees ciphertext.")
+                Text("Sends this key to your other devices, encrypted. Leave it off to keep the key on this device only.")
             }
             Section {
-                Button("Export private key") { exporting = true }
+                Button("Export Private Key") { exporting = true }
             } footer: {
                 Text("Hosts using this key: \(store.data.hosts.filter { $0.identityID == identity.id }.map(\.displayName).joined(separator: ", "))")
             }
         }
         .navigationTitle(identity.label)
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Export the private key? Anyone with the file can log in as you.", isPresented: $exporting, titleVisibility: .visible) {
+        .confirmationDialog("Export this private key? Anyone who has it can log in as you.", isPresented: $exporting, titleVisibility: .visible) {
             if let key = Keychain.string(for: .privateKey(identity.id)) {
-                ShareLink("Share private key", item: key)
-                Button("Copy to clipboard") {
+                ShareLink("Share Private Key", item: key)
+                Button("Copy to Clipboard") {
                     UIPasteboard.general.setItems([[UTType.plainText.identifier: key]],
                                                   options: [.expirationDate: Date().addingTimeInterval(60), .localOnly: true])
                 }

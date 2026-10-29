@@ -17,39 +17,38 @@ struct SettingsView: View {
                 Picker("Font", selection: $store.data.settings.terminal.fontName) {
                     ForEach(TerminalFonts.names, id: \.self) { Text($0).tag($0) }
                 }
-                Stepper("Font size \(Int(store.data.settings.terminal.fontSize))",
+                Stepper("Font Size \(Int(store.data.settings.terminal.fontSize))",
                         value: $store.data.settings.terminal.fontSize, in: 8...32)
-                Toggle("Backspace sends ^H", isOn: $store.data.settings.terminal.backspaceSendsControlH)
+                Toggle("Backspace Sends ^H", isOn: $store.data.settings.terminal.backspaceSendsControlH)
             }
             Section("Keyboard") {
-                Toggle("Open with key panel", isOn: $store.data.settings.showKeyPanelByDefault)
-                Toggle("Key clicks", isOn: $store.data.settings.keyClicks)
+                Toggle("Start with the Key Panel", isOn: $store.data.settings.showKeyPanelByDefault)
+                Toggle("Key Clicks", isOn: $store.data.settings.keyClicks)
             }
             Section {
-                Toggle("Keep sessions alive in background", isOn: Binding(
+                Toggle("Keep Sessions Alive in Background", isOn: Binding(
                     get: { store.data.settings.keepAliveInBackground },
                     set: { on in
                         store.data.settings.keepAliveInBackground = on
                         if on && !keeper.locationAllowed { keeper.requestPermission() }
                     }))
-                Toggle("Reconnect when returning", isOn: $store.data.settings.reconnectOnReturn)
+                Toggle("Reconnect Automatically", isOn: $store.data.settings.reconnectOnReturn)
             } header: {
                 Text("Background")
             } footer: {
                 Text(store.data.settings.keepAliveInBackground && keeper.authorization == .denied
-                     ? "Location access is off for Tube in Settings, so sessions will stop about 30 seconds after you leave the app."
-                     : "iOS stops apps about 30 seconds after you leave them. With this on, Tube runs a low-accuracy location session while SSH sessions are open, which keeps them connected; the location pill shows while it runs. Locations are not stored or sent anywhere.")
+                     ? "Location access is off for Tube, so sessions stop about 30 seconds after you leave the app. You can turn it on in the Settings app."
+                     : "iOS pauses apps about 30 seconds after you leave them. With this on, Tube keeps a low-accuracy location request running while sessions are open, which keeps them connected. You’ll see the location icon while it runs. Your location isn’t stored or sent anywhere.")
             }
             Section {
-                Toggle("Require Face ID / passcode", isOn: $store.data.settings.lockWithBiometrics)
+                Toggle("Require Face ID or Passcode", isOn: $store.data.settings.lockWithBiometrics)
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Locks the app when it goes to the background. Private keys and passwords are in the device Keychain and never leave the device unless you turn on key sync for an identity.")
+                Text("Tube locks when you leave it. Passwords and keys are kept in this device’s Keychain and never leave it unless you turn on sync for a key.")
             }
-            Section("About") {
-                LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
-                LabeledContent("Build", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
+            Section {
+                NavigationLink("About Tube") { AboutView() }
             }
         }
         .navigationTitle("Settings")
@@ -83,16 +82,16 @@ struct KnownHostsView: View {
                 }
             }
             if store.data.knownHosts.keys.isEmpty {
-                Text("Host keys are recorded the first time you trust a server.").foregroundStyle(.secondary)
+                Text("Servers you trust show up here.").foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Known hosts")
+        .navigationTitle("Known Hosts")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             ToolbarItem(placement: .primaryAction) {
                 ShareLink(item: store.data.knownHosts.exportOpenSSH()) { Image(systemName: "square.and.arrow.up") }
-                    .accessibilityLabel("Export known_hosts")
+                    .accessibilityLabel("Export Known Hosts")
             }
         }
     }
@@ -118,16 +117,16 @@ struct SSHConfigView: View {
                 HStack {
                     Button("Paste") { text = UIPasteboard.general.string ?? "" }
                     Spacer()
-                    Button("Choose file") { picking = true }
+                    Button("Choose File") { picking = true }
                 }
                 .buttonStyle(.borderless)
             } header: {
-                Text("Import ssh_config")
+                Text("Import SSH Config")
             } footer: {
-                Text("Reads Host, HostName, User, Port and ProxyJump. IdentityFile paths are listed but keys must be imported under Identities.")
+                Text("Brings in Host, HostName, User, Port and ProxyJump. Keys named by IdentityFile need to be imported in SSH Keys.")
             }
             if !parsed.isEmpty {
-                Section("\(parsed.count) hosts") {
+                Section("\(parsed.count) Hosts") {
                     ForEach(parsed, id: \.alias) { e in
                         VStack(alignment: .leading) {
                             Text(e.alias)
@@ -135,7 +134,7 @@ struct SSHConfigView: View {
                                 .font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
                     }
-                    Button("Import \(parsed.count) hosts") {
+                    Button("Import \(parsed.count) Hosts") {
                         let hosts = SSHConfig.importHosts(parsed, defaultUser: "root")
                         for h in hosts { store.upsert(h, password: nil) }
                         result = "Imported \(hosts.count) hosts"
@@ -146,11 +145,11 @@ struct SSHConfigView: View {
             if let result { Text(result) }
             Section("Export") {
                 ShareLink(item: SSHConfig.export(store.data.hosts)) {
-                    Label("Export hosts as ssh_config", systemImage: "square.and.arrow.up")
+                    Label("Export Hosts as SSH Config", systemImage: "square.and.arrow.up")
                 }
             }
         }
-        .navigationTitle("ssh_config")
+        .navigationTitle("SSH Config")
         .navigationBarTitleDisplayMode(.inline)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.data, .text]) { r in
             guard case .success(let url) = r else { return }

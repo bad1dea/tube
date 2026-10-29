@@ -27,17 +27,17 @@ struct TerminalScreen: View {
         }
         .alert(item: $sessions.passwordRequest) { req in
             if !req.hasPassword {
-                return Alert(title: Text("No saved password"),
-                             message: Text("Save a password for \(req.destination) in the host settings to use this key."),
+                return Alert(title: Text("No Saved Password"),
+                             message: Text("Save a password for \(req.destination) in the host’s settings to use this button."),
                              dismissButton: .default(Text("OK")))
             }
             return Alert(
-                title: Text("Type saved password?"),
+                title: Text("Type Your Saved Password?"),
                 message: Text(req.atPrompt
                     ? "Types the password for \(req.destination) and presses Return. Requires Face ID, Touch ID or your passcode."
-                    : "The cursor is not at a password prompt. The password will be typed where the cursor is and may appear on screen in plain text."),
-                primaryButton: req.atPrompt ? .default(Text("Type password")) { sessions.confirmTypePassword(req) }
-                                            : .destructive(Text("Type anyway")) { sessions.confirmTypePassword(req) },
+                    : "The cursor isn’t at a password prompt, so your password would be typed where the cursor is and could show on screen."),
+                primaryButton: req.atPrompt ? .default(Text("Type Password")) { sessions.confirmTypePassword(req) }
+                                            : .destructive(Text("Type Anyway")) { sessions.confirmTypePassword(req) },
                 secondaryButton: .cancel { _ = sessions.active?.view.becomeFirstResponder() })
         }
         .sheet(isPresented: $sessions.filesPresented) {
@@ -70,7 +70,7 @@ struct SessionStatusOverlay: View {
             VStack {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Connecting").font(.callout)
+                    Text("Connecting…").font(.callout)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -123,7 +123,7 @@ struct PasswordPrompt: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(rejected ? "Wrong password" : "Password").font(.headline)
+            Text(rejected ? "Wrong Password" : "Password Needed").font(.headline)
             Text(destination).font(.caption.monospaced()).foregroundStyle(.secondary)
             SecureField("Password", text: $password)
                 .textContentType(.password)
@@ -133,7 +133,7 @@ struct PasswordPrompt: View {
                 .padding(8)
                 .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 6))
                 .accessibilityIdentifier("sessionPassword")
-            Toggle("Save to vault", isOn: $save)
+            Toggle("Save Password", isOn: $save)
                 .font(.subheadline)
             HStack {
                 Button("Connect", action: submit)
@@ -429,7 +429,7 @@ struct PanelTabView: View {
         case .snippets:
             List {
                 if store.data.snippets.isEmpty {
-                    Text("No snippets. Add them from the host list menu.").foregroundStyle(.secondary)
+                    Text("No snippets yet. Add them in Library › Snippets.").foregroundStyle(.secondary)
                 }
                 ForEach(store.data.snippets) { s in
                     Button {
@@ -451,7 +451,7 @@ struct PanelTabView: View {
         case .history:
             List {
                 if store.data.history.isEmpty {
-                    Text("Commands run from snippets appear here.").foregroundStyle(.secondary)
+                    Text("Commands you run from snippets show up here.").foregroundStyle(.secondary)
                 }
                 ForEach(store.data.history, id: \.self) { cmd in
                     Button { sessions.run(history: cmd) } label: {
