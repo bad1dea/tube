@@ -58,4 +58,4 @@ Layout and conventions: CLAUDE.md.
 
 ## License
 
-MIT (to be added with the first public release).
+MIT, see LICENSE.

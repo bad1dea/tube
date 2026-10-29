@@ -64,9 +64,10 @@ def ensure_internal_group(app)
           beta_group_ids: [group.id],
           attributes: { email: t.email, firstName: t.first_name, lastName: t.last_name }.compact
         )
-        UI.success("added tester #{t.email} to '#{group.name}'")
+        # Logs are public on a public repo: no tester emails.
+        UI.success("added a tester to '#{group.name}'")
       rescue StandardError => e
-        UI.important("could not add #{t.email} to '#{group.name}': #{e.message}. Add them in TestFlight > Internal Testing.")
+        UI.important("could not add a tester to '#{group.name}': #{e.message}. Add them in TestFlight > Internal Testing.")
       end
     end
   end
@@ -117,7 +118,7 @@ platform :ios do
     certs = Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: "DISTRIBUTION,IOS_DISTRIBUTION" })
     cert = certs.find { |c| c.serial_number.to_s.downcase.sub(/^0+/, "") == serial }
     UI.user_error!("No distribution certificate with serial #{serial} (have: #{certs.map(&:serial_number).join(', ')})") unless cert
-    UI.message("using certificate #{cert.name} (#{cert.id}), expires #{cert.expiration_date}")
+    UI.message("using distribution certificate #{cert.id}, expires #{cert.expiration_date}")
 
     SIGNED_TARGETS.each do |identifier, (app_name, profile_name, file)|
       bid = Spaceship::ConnectAPI::BundleId.find(identifier)
@@ -165,7 +166,7 @@ platform :ios do
     UI.important("no crash submissions") if subs.empty?
     subs.each do |sub|
       a = sub["attributes"] || {}
-      UI.message("==== crash #{sub['id']} #{a['createdDate']} build=#{a['buildBundleId'] || ''} device=#{a['deviceModel']} os=#{a['osVersion']} comment=#{a['comment'].inspect}")
+      UI.message("==== crash #{sub['id']} #{a['createdDate']} device=#{a['deviceModel']} os=#{a['osVersion']}")
       log = c.get("v1/betaFeedbackCrashSubmissions/#{sub['id']}/crashLog").body.dig("data", "attributes", "logText") rescue nil
       puts(log || "(no log text)")
     end
