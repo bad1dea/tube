@@ -48,7 +48,9 @@ final class SessionWorkflowTests: XCTestCase {
         e.tap()
     }
 
-    func connect(_ prefix: String) {
+    /// expectKeyBar is false when the host will ask for a password first:
+    /// the password field has focus, so the terminal's key bar is not up.
+    func connect(_ prefix: String, expectKeyBar: Bool = true) {
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
         // Lists only create rows that are on screen.
         for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp() }
@@ -60,7 +62,9 @@ final class SessionWorkflowTests: XCTestCase {
             sleep(12)
             trust.tap()
         }
-        XCTAssertTrue(el("Escape").waitForExistence(timeout: 20), "terminal did not open")
+        if expectKeyBar {
+            XCTAssertTrue(el("Escape").waitForExistence(timeout: 20), "terminal did not open")
+        }
         let tutorial = app.buttons["Continue"]
         if tutorial.waitForExistence(timeout: 6) { tutorial.tap() }
         sleep(4)
@@ -202,7 +206,7 @@ final class SessionWorkflowTests: XCTestCase {
         // A host with no saved password asks for one.
         tap("Hosts")
         sleep(1)
-        connect("runner-nopw")
+        connect("runner-nopw", expectKeyBar: false)
         let pw = app.secureTextFields["sessionPassword"]
         XCTAssertTrue(pw.waitForExistence(timeout: 20), "no password prompt")
         shot("w13-password-prompt")
