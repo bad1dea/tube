@@ -60,7 +60,7 @@ final class SessionWorkflowTests: XCTestCase {
         }
         XCTAssertTrue(el("Escape").waitForExistence(timeout: 20), "terminal did not open")
         let tutorial = app.buttons["Continue"]
-        if tutorial.waitForExistence(timeout: 2) { tutorial.tap() }
+        if tutorial.waitForExistence(timeout: 6) { tutorial.tap() }
         sleep(4)
     }
 

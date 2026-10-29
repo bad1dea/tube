@@ -42,7 +42,13 @@ jobs:
         run: |
           # The UI test logs in to this Mac over SSH as a throwaway user; the
           # runner account's own password cannot be reset without the old one.
-          sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || sudo systemsetup -setremotelogin on || true
+          # Own sshd on 2223, started directly: the launchd-managed system sshd
+          # accepts TCP but can take minutes to answer the first handshakes.
+          sudo mkdir -p /tmp/tube-sshd && sudo ssh-keygen -q -t ed25519 -N '' -f /tmp/tube-sshd/host_ed25519
+          printf '%s\n' 'Port 2223' 'ListenAddress 127.0.0.1' 'HostKey /tmp/tube-sshd/host_ed25519' \
+            'PasswordAuthentication yes' 'KbdInteractiveAuthentication yes' 'UsePAM yes' 'UseDNS no' \
+            'PidFile /tmp/tube-sshd/sshd.pid' 'Subsystem sftp internal-sftp' 'AllowTcpForwarding yes' \
+            'MaxStartups 200' 'LogLevel VERBOSE' | sudo tee /tmp/tube-sshd/sshd_config >/dev/null
           U=tubetest
           PW="ui-$(openssl rand -hex 8)"
           echo "::add-mask::$PW"
@@ -63,10 +69,9 @@ jobs:
           echo "UITEST_USER=$U" >> "$GITHUB_ENV"
           echo "UITEST_PW=$PW" >> "$GITHUB_ENV"
           sleep 2
-          nc -z 127.0.0.1 22 && echo "sshd listening" || echo "sshd not listening; terminal steps will see a failed connection"
-          # macOS sshd makes its host keys on the first connection; do it now so
-          # the app's handshake does not time out.
-          ssh-keyscan -T 60 127.0.0.1 2>/dev/null | head -1 | cut -c1-40 || true
+          sudo /usr/sbin/sshd -f /tmp/tube-sshd/sshd_config -E /tmp/tube-sshd/sshd.log
+          for i in $(seq 1 30); do ssh-keyscan -T 5 -p 2223 127.0.0.1 2>/dev/null | grep -q ssh-ed25519 && break; sleep 1; done
+          ssh-keyscan -T 5 -p 2223 127.0.0.1 2>/dev/null | grep -q ssh-ed25519 && echo "sshd answering on 2223" || { echo "sshd on 2223 not answering"; sudo cat /tmp/tube-sshd/sshd.log; exit 1; }
 
       - name: UI tests on simulator
         working-directory: ios
@@ -78,7 +83,7 @@ jobs:
           UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name']]; print(ids[-1] if ids else '')")
           echo "simulator $UDID"
           # TEST_RUNNER_-prefixed environment variables reach the test process.
-          export TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="${UITEST_USER:-runner}" TEST_RUNNER_TUBE_UITEST_PASSWORD="$UITEST_PW"
+          export TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_PORT=2223 TEST_RUNNER_TUBE_UITEST_USER="${UITEST_USER:-runner}" TEST_RUNNER_TUBE_UITEST_PASSWORD="$UITEST_PW"
           xcodebuild test -project Tube.xcodeproj -scheme Tube -destination "id=$UDID" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
             -test-timeouts-enabled YES -maximum-test-execution-time-allowance 1500 \
@@ -104,6 +109,7 @@ jobs:
           check "two sessions, switch"        "sudo test -f $d/ok-session1 -a -f $d/ok-session2"
           check "password prompt connects"    "sudo test -f $d/ok-password-prompt"
           sudo ls -la $d || true
+          echo "--- sshd log (last 30) ---"; sudo tail -30 /tmp/tube-sshd/sshd.log || true
           exit $fail
 
       - name: Export screenshots
