@@ -37,12 +37,24 @@ jobs:
           grep -q "BUILD SUCCEEDED" build.log
 
       - name: Enable SSH on the runner for UI tests
+        continue-on-error: true
         run: |
-          # The UI test connects to this Mac over SSH (password auth).
+          # The UI test logs in to this Mac over SSH as a throwaway user; the
+          # runner account's own password cannot be reset without the old one.
           sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || sudo systemsetup -setremotelogin on || true
+          U=tubetest
           PW="ui-$(openssl rand -hex 8)"
-          sudo dscl . -passwd /Users/$(whoami) "$PW"
           echo "::add-mask::$PW"
+          sudo dscl . -create /Users/$U
+          sudo dscl . -create /Users/$U UserShell /bin/zsh
+          sudo dscl . -create /Users/$U RealName "Tube UI test"
+          sudo dscl . -create /Users/$U UniqueID 5011
+          sudo dscl . -create /Users/$U PrimaryGroupID 20
+          sudo dscl . -create /Users/$U NFSHomeDirectory /Users/$U
+          sudo dscl . -passwd /Users/$U "$PW"
+          sudo mkdir -p /Users/$U && sudo chown $U:staff /Users/$U
+          sudo dseditgroup -o edit -a $U -t user com.apple.access_ssh 2>/dev/null || true
+          echo "UITEST_USER=$U" >> "$GITHUB_ENV"
           echo "UITEST_PW=$PW" >> "$GITHUB_ENV"
           sleep 2
           nc -z 127.0.0.1 22 && echo "sshd listening" || echo "sshd not listening; terminal steps will see a failed connection"
@@ -57,7 +69,7 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
             -skipPackagePluginValidation -skipMacroValidation \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
-            TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="$(whoami)" \
+            TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="${UITEST_USER:-runner}" \
             TEST_RUNNER_TUBE_UITEST_PASSWORD="$UITEST_PW" 2>&1 | tee uitest.log | grep -E "error:|Test Case|XCTAssert|failed|passed|TEST (SUCCEEDED|FAILED)" || true
           grep -q "TEST SUCCEEDED" uitest.log
 
