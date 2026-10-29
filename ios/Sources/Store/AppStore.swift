@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import TubeCore
+import TermInput
 import TubeSSH
 
 /// Everything the app persists except secrets. Saved as one JSON file with
@@ -16,6 +17,8 @@ struct LocalData: Codable {
     /// Commands sent from snippets or history; never typed input.
     var history: [String] = []
     var sync = SyncState()
+    /// Commands typed in sessions, for suggestions. Device only, not synced.
+    var commandHistory: [CommandSuggester.Entry] = []
 
     init() {}
 
@@ -32,6 +35,7 @@ struct LocalData: Codable {
         settings = try c.decodeIfPresent(AppSettings.self, forKey: .settings) ?? AppSettings()
         history = try c.decodeIfPresent([String].self, forKey: .history) ?? []
         sync = try c.decodeIfPresent(SyncState.self, forKey: .sync) ?? SyncState()
+        commandHistory = try c.decodeIfPresent([CommandSuggester.Entry].self, forKey: .commandHistory) ?? []
     }
 }
 

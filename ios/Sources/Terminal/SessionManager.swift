@@ -3,11 +3,14 @@ import SwiftUI
 import LocalAuthentication
 import Combine
 import TubeCore
+import TermInput
 
 @MainActor
 final class SessionManager: ObservableObject {
     @Published private(set) var sessions: [TerminalSession] = []
-    @Published var activeID: UUID?
+    @Published var activeID: UUID? {
+        didSet { watchTyping() }
+    }
     /// iPhone: whether the terminal screen covers the host list.
     @Published var terminalPresented = false
     @Published var hostPickerPresented = false
@@ -16,6 +19,8 @@ final class SessionManager: ObservableObject {
     @Published var pendingSnippet: Snippet?
     @Published var filesPresented = false
     @Published var passwordRequest: PasswordRequest?
+    @Published private(set) var suggestions: [String] = []
+    private var typedWatcher: AnyCancellable?
     /// Last connection error per host, for the badge in the host list.
     @Published private(set) var failures: [UUID: String] = [:]
     private var stateWatchers: [UUID: AnyCancellable] = [:]
@@ -43,6 +48,7 @@ final class SessionManager: ObservableObject {
 
     func open(_ host: Host) {
         let s = TerminalSession(host: host, store: store, trust: trust, keyboard: keyboard)
+        s.onCommand = { [weak self] line in self?.recordCommand(line) }
         sessions.append(s)
         activeID = s.id
         terminalPresented = true
@@ -71,6 +77,26 @@ final class SessionManager: ObservableObject {
 
     func select(_ id: UUID) {
         activeID = id
+    }
+
+    private func recordCommand(_ line: String) {
+        var s = CommandSuggester(history: store.data.commandHistory)
+        s.record(line)
+        store.data.commandHistory = s.history
+    }
+
+    private func watchTyping() {
+        typedWatcher = active?.$typedLine.receive(on: RunLoop.main).sink { [weak self] typed in
+            guard let self else { return }
+            let next = typed.map { CommandSuggester(history: self.store.data.commandHistory).suggestions(for: $0) } ?? []
+            if next != self.suggestions { self.suggestions = next }
+        }
+    }
+
+    /// Completes the current line with `suggestion` by typing the missing part.
+    func accept(_ suggestion: String) {
+        guard let s = active, let typed = s.typedLine, suggestion.hasPrefix(typed) else { return }
+        s.view.send(Array(suggestion.dropFirst(typed.count).utf8))
     }
 
     func close(_ id: UUID) {

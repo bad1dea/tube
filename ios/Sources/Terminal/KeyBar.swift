@@ -141,6 +141,8 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
     private let stripScroll = UIScrollView()
     private let stripStack = UIStackView()
     private let keyScroll = KeyScrollView()
+    private let suggestionScroll = KeyScrollView()
+    private let suggestionStack = UIStackView()
     private var latchButtons: [LatchKind: KeyButton] = [:]
     private var toggleButton = UIButton(type: .system)
     private var cancellables: Set<AnyCancellable> = []
@@ -158,12 +160,16 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
         sessions.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in
             DispatchQueue.main.async { self?.rebuildStrip() }
         }.store(in: &cancellables)
+        sessions.$suggestions.receive(on: RunLoop.main).sink { [weak self] list in self?.showSuggestions(list) }
+            .store(in: &cancellables)
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: keyboard.panelVisible ? rowHeight : rowHeight * 2)
+        var rows: CGFloat = keyboard.panelVisible ? 1 : 2
+        if !suggestionScroll.isHidden { rows += 0.8 }
+        return CGSize(width: UIView.noIntrinsicMetric, height: rowHeight * rows)
     }
 
     private func build() {
@@ -177,6 +183,27 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
             vstack.topAnchor.constraint(equalTo: topAnchor),
             vstack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+
+        // Suggestions: only shown while typing a line that has completions.
+        suggestionScroll.showsHorizontalScrollIndicator = false
+        suggestionScroll.delaysContentTouches = false
+        suggestionScroll.isHidden = true
+        suggestionScroll.accessibilityIdentifier = "suggestions"
+        suggestionScroll.heightAnchor.constraint(equalToConstant: rowHeight * 0.8).isActive = true
+        suggestionStack.axis = .horizontal
+        suggestionStack.spacing = 6
+        suggestionStack.isLayoutMarginsRelativeArrangement = true
+        suggestionStack.directionalLayoutMargins = .init(top: 4, leading: 6, bottom: 0, trailing: 6)
+        suggestionStack.translatesAutoresizingMaskIntoConstraints = false
+        suggestionScroll.addSubview(suggestionStack)
+        NSLayoutConstraint.activate([
+            suggestionStack.leadingAnchor.constraint(equalTo: suggestionScroll.contentLayoutGuide.leadingAnchor),
+            suggestionStack.trailingAnchor.constraint(equalTo: suggestionScroll.contentLayoutGuide.trailingAnchor),
+            suggestionStack.topAnchor.constraint(equalTo: suggestionScroll.contentLayoutGuide.topAnchor),
+            suggestionStack.bottomAnchor.constraint(equalTo: suggestionScroll.contentLayoutGuide.bottomAnchor),
+            suggestionStack.heightAnchor.constraint(equalTo: suggestionScroll.frameLayoutGuide.heightAnchor),
+        ])
+        vstack.addArrangedSubview(suggestionScroll)
 
         // Session strip
         let strip = UIStackView()
@@ -285,6 +312,34 @@ final class AccessoryBar: UIInputView, UIInputViewAudioFeedback {
             ])
             stripStack.addArrangedSubview(b)
         }
+    }
+
+    private func showSuggestions(_ list: [String]) {
+        suggestionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let typed = sessions.active?.typedLine ?? ""
+        for s in list {
+            var config = UIButton.Configuration.gray()
+            config.cornerStyle = .medium
+            config.buttonSize = .small
+            // Typed part dim, completion bright, so it is clear what Tap adds.
+            let title = NSMutableAttributedString(string: typed, attributes: [
+                .font: UIFont.monospacedSystemFont(ofSize: 13, weight: .regular), .foregroundColor: UIColor.secondaryLabel])
+            title.append(NSAttributedString(string: String(s.dropFirst(typed.count)), attributes: [
+                .font: UIFont.monospacedSystemFont(ofSize: 13, weight: .semibold), .foregroundColor: UIColor.label]))
+            config.attributedTitle = AttributedString(title)
+            let b = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in
+                UIDevice.current.playInputClick()
+                self?.sessions.accept(s)
+            })
+            b.accessibilityLabel = "Complete \(s)"
+            suggestionStack.addArrangedSubview(b)
+        }
+        let hide = list.isEmpty
+        if suggestionScroll.isHidden != hide {
+            suggestionScroll.isHidden = hide
+            invalidateIntrinsicContentSize()
+        }
+        suggestionScroll.contentOffset = .zero
     }
 
     private func updateLatches(_ bar: ModifierBar) {

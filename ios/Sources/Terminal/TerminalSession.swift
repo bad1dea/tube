@@ -1,6 +1,7 @@
 import UIKit
 import SwiftTerm
 import TubeCore
+import TermInput
 import TubeSSH
 
 @MainActor
@@ -141,6 +142,26 @@ final class TerminalSession: ObservableObject, Identifiable {
 
     func send(_ bytes: [UInt8]) {
         outbound?.yield(bytes)
+        trackLine(bytes)
+    }
+
+    // MARK: Typed line (for suggestions)
+
+    private var tracker = LineTracker()
+    /// What the user has typed on the current shell line, if it could be followed.
+    @Published private(set) var typedLine: String?
+    var onCommand: ((String) -> Void)?
+
+    private func trackLine(_ bytes: [UInt8]) {
+        let echoed = cursorLine
+        if let line = tracker.feed(bytes) {
+            // Only lines that were echoed count: password prompts do not echo,
+            // so a typed password is never recorded.
+            if !view.getTerminal().isCurrentBufferAlternate && echoed.hasSuffix(line.trimmingCharacters(in: .whitespaces)) {
+                onCommand?(line)
+            }
+        }
+        typedLine = tracker.known && !view.getTerminal().isCurrentBufferAlternate ? tracker.text : nil
     }
 
     var hasSavedPassword: Bool {

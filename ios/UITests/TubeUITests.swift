@@ -60,6 +60,15 @@ final class TubeUITests: XCTestCase {
         shot("05-keyrow-scrolled")
         for _ in 0..<4 { row.swipeRight() }
 
+        // Suggestions while typing.
+        app.typeText("git s")
+        let chip = app.buttons["Complete git status"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "no suggestion chip for 'git s'")
+        shot("05b-suggestions")
+        chip.tap()
+        app.typeText("\n")
+        sleep(1)
+
         // Key panel and every tab (the {} tab crashed in build 3).
         element("Key panel").tap()
         sleep(1)

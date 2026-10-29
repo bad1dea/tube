@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: macos-26
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -63,10 +64,14 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          # UI automation otherwise waits for an authorization prompt nobody can answer.
+          sudo automationmodetool enable-automationmode-without-authentication || true
+          xcrun simctl boot "$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name']]; print(ids[-1])")" || true
           UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' in x['name']]; print(ids[-1] if ids else '')")
           echo "simulator $UDID"
           xcodebuild test -project Tube.xcodeproj -scheme Tube -destination "id=$UDID" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            -test-timeouts-enabled YES -maximum-test-execution-time-allowance 600 \
             -skipPackagePluginValidation -skipMacroValidation \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
             TEST_RUNNER_TUBE_UITEST_HOST=127.0.0.1 TEST_RUNNER_TUBE_UITEST_USER="${UITEST_USER:-runner}" \
@@ -84,7 +89,9 @@ jobs:
         if: always()
         with:
           name: ui-screenshots
-          path: shots
+          path: |
+            shots
+            ios/uitest.log
           if-no-files-found: ignore
 
       - name: TubeKit tests on macOS
