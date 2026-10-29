@@ -115,6 +115,11 @@ final class SessionWorkflowTests: XCTestCase {
         run("tmux new -s tube", wait: 3)
         run("touch ok-in-tmux")
         shot("w05-tmux")
+        // Full-screen apps use the last row (tmux status, vim command line);
+        // it must not be under the keyboard's session strip.
+        let termBottom = el("terminal").frame.maxY
+        let stripTop = el("Hosts").frame.minY
+        XCTAssertLessThanOrEqual(termBottom, stripTop + 1, "terminal extends under the key bar (\(termBottom) > \(stripTop))")
         tap("Control")
         app.typeText("b")
         sleep(1)

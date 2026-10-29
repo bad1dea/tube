@@ -13,7 +13,9 @@ struct TerminalScreen: View {
             Color(TerminalTheme.named(store.data.settings.terminal.themeName).background.uiColor)
                 .ignoresSafeArea()
             TerminalHost(store: store, sessions: sessions)
+                // The controller does its own keyboard avoidance (see keyboardChanged).
                 .ignoresSafeArea(.container, edges: .bottom)
+                .ignoresSafeArea(.keyboard)
             if let s = sessions.active {
                 SessionStatusOverlay(session: s)
             }
@@ -189,6 +191,7 @@ final class TerminalHostController: UIViewController {
         self.sessions = sessions
         super.init(nibName: nil, bundle: nil)
         sessions.keyboard.onToggleInputMode = { [weak self] in self?.toggleInputMode() }
+        observeKeyboard()
         // Switch views on every selection change, including taps in the
         // keyboard's session strip that do not re-render the SwiftUI screen.
         // $activeID emits before the property changes, so use the value.
@@ -199,6 +202,41 @@ final class TerminalHostController: UIViewController {
     }
 
     private var activeWatcher: AnyCancellable?
+
+    // MARK: Keyboard
+
+    // The terminal's bottom edge follows the keyboard's real frame, which
+    // includes the accessory bar and the suggestion row. keyboardLayoutGuide
+    // did not account for the accessory here, so the last rows (tmux status
+    // line, vim command line) were drawn behind the session strip.
+    private var bottomConstraint: NSLayoutConstraint?
+    private var keyboardOverlap: CGFloat = 0
+    private var bottomInset: CGFloat { max(keyboardOverlap, view.safeAreaInsets.bottom) }
+
+    private func observeKeyboard() {
+        let nc = NotificationCenter.default
+        for name in [UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardWillHideNotification] {
+            nc.addObserver(self, selector: #selector(keyboardChanged(_:)), name: name, object: nil)
+        }
+    }
+
+    @objc private func keyboardChanged(_ n: Notification) {
+        guard let end = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+        if n.name == UIResponder.keyboardWillHideNotification {
+            keyboardOverlap = 0
+        } else {
+            let kb = view.convert(end, from: nil)
+            keyboardOverlap = max(0, view.bounds.maxY - kb.minY)
+        }
+        bottomConstraint?.constant = -bottomInset
+        let duration = n.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        UIView.animate(withDuration: duration) { self.view.layoutIfNeeded() }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        bottomConstraint?.constant = -bottomInset
+    }
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
@@ -221,10 +259,9 @@ final class TerminalHostController: UIViewController {
             tv.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 4),
             tv.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -4),
             tv.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            // keyboardLayoutGuide follows the keyboard plus accessory, so the
-            // prompt line is never hidden behind them.
-            tv.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
         ])
+        bottomConstraint = tv.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -bottomInset)
+        bottomConstraint?.isActive = true
         tv.inputAccessoryView = accessory
         tv.inputView = sessions.keyboard.panelVisible ? panel : nil
         installPadGesture(on: tv)
@@ -271,7 +308,7 @@ final class TerminalHostController: UIViewController {
         // Centre the ring under the finger, kept fully on screen.
         var origin = CGPoint(x: point.x - size.width / 2, y: point.y - 8 - TerminalPad.ringSize / 2)
         origin.x = min(max(origin.x, bounds.minX), bounds.maxX - size.width)
-        origin.y = min(max(origin.y, bounds.minY), view.keyboardLayoutGuide.layoutFrame.minY - size.height - 8)
+        origin.y = min(max(origin.y, bounds.minY), view.bounds.maxY - bottomInset - size.height - 8)
         let p = TerminalPad(frame: CGRect(origin: origin, size: size))
         p.terminal = tv
         p.onClose = { [weak self, weak p] in
