@@ -183,6 +183,14 @@ struct FilesView: View {
 
     var body: some View {
         NavigationStack {
+            prompts(dialogs(browser))
+        }
+        .task { await model.start(existing: existing, store: store, trust: trust) }
+        .onDisappear { Task { await model.stop() } }
+    }
+
+    // Split out of body: as one expression it is too much for the type checker.
+    private var browser: some View {
             List {
                 if let parent = model.parent {
                     Button { Task { await model.open(parent) } } label: {
@@ -246,6 +254,10 @@ struct FilesView: View {
                     .background(.regularMaterial)
                 }
             }
+    }
+
+    private func dialogs(_ content: some View) -> some View {
+        content
             .navigationTitle(model.path.isEmpty ? model.host.displayName : model.path)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -263,6 +275,10 @@ struct FilesView: View {
                 guard case .success(let urls) = r else { return }
                 Task { await model.upload(urls) }
             }
+    }
+
+    private func prompts(_ content: some View) -> some View {
+        content
             .confirmationDialog(replaceQuestion, isPresented: Binding(get: { model.replacing != nil }, set: { if !$0 { model.replacing = nil } }),
                                 titleVisibility: .visible, presenting: model.replacing) { r in
                 Button("Replace", role: .destructive) { Task { for u in r.urls { await model.upload(u) } } }
@@ -294,9 +310,6 @@ struct FilesView: View {
                 Text(model.error ?? "")
             }
             .quickLookPreview($model.preview)
-        }
-        .task { await model.start(existing: existing, store: store, trust: trust) }
-        .onDisappear { Task { await model.stop() } }
     }
 
     private var replaceQuestion: String {
