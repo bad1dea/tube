@@ -133,3 +133,4 @@ dl.kv dd { margin: 0; word-break: break-all; }
   .sidebar { border-right: none; border-bottom: 1px solid var(--line); }
   .grid2 { grid-template-columns: 1fr; }
 }
+.qr { display: block; margin: 6px 0; border-radius: 4px; }

@@ -4,6 +4,7 @@ import { destination, displayName, newID, snippetVariables } from "./model.ts";
 import { loadSSH } from "./ssh.ts";
 import * as syncAPI from "./vault/sync.ts";
 import { themes } from "./themes.ts";
+import { QRCode } from "./QRCode.tsx";
 
 type Commit = (mutate?: (d: WebData) => void) => void;
 
@@ -324,7 +325,14 @@ export function SyncPanel({ data, commit, runSync, onClose }: { data: WebData; c
         <button disabled={busy} onClick={run(runSync)}>Sync now</button>
         <button disabled={busy} onClick={run(async () => setInvite(await syncAPI.invite(creds)))}>Show pairing code</button>
       </div>
-      {invite && <><p className="muted small">Valid 10 minutes, one device. Paste it on the other device.</p><pre className="mono wrap">{invite}</pre></>}
+      {invite && (
+        <>
+          <p className="muted small">Valid 10 minutes, one device. On iPhone or iPad, scan it in Sync &gt; Join with a Pairing Code, or with the Camera app. Elsewhere, paste it.</p>
+          <QRCode text={invite} label="Pairing QR code" />
+          <pre className="mono wrap">{invite}</pre>
+          <div className="actions left"><button onClick={() => navigator.clipboard.writeText(invite)}>Copy</button></div>
+        </>
+      )}
       <h3>Devices</h3>
       <table className="list">
         <tbody>
