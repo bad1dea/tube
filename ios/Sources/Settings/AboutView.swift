@@ -19,6 +19,7 @@ struct AboutView: View {
                         .foregroundStyle(.tint)
                     Text("Tube SSH").font(.title2.bold())
                     Text("Version \(version)").font(.footnote).foregroundStyle(.secondary)
+                    Text("Made by khuong").font(.footnote).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -36,6 +37,7 @@ struct AboutView: View {
                 credit("Citadel", "Orlandos", "https://github.com/orlandos-nl/Citadel")
                 credit("SwiftNIO SSH", "Apple", "https://github.com/apple/swift-nio-ssh")
                 credit("Swift Crypto", "Apple", "https://github.com/apple/swift-crypto")
+                credit("Color schemes", "iTerm2-Color-Schemes", "https://github.com/mbadolato/iTerm2-Color-Schemes")
             }
         }
         .navigationTitle("About")
