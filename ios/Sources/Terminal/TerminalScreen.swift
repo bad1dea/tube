@@ -80,7 +80,19 @@ struct SessionStatusOverlay: View {
     var body: some View {
         switch session.state {
         case .connected:
-            EmptyView()
+            if let notice = session.pasteNotice {
+                VStack {
+                    HStack(spacing: 8) {
+                        if notice.busy { ProgressView() }
+                        Text(notice.text).font(.callout).foregroundStyle(notice.failed ? .red : .primary)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .allowsHitTesting(false)
+            }
         case .connecting:
             VStack {
                 HStack(spacing: 8) {
@@ -240,6 +252,28 @@ final class TerminalHostController: UIViewController {
         for name in [UIResponder.keyboardWillChangeFrameNotification, UIResponder.keyboardWillHideNotification] {
             nc.addObserver(self, selector: #selector(keyboardChanged(_:)), name: name, object: nil)
         }
+        // Coming back from the lock screen (Live Activity tap) the keyboard can be
+        // restored without a usable will-change frame, leaving the last rows under
+        // the accessory bar. Re-measure once things settle.
+        for name in [UIResponder.keyboardDidShowNotification, UIResponder.keyboardDidChangeFrameNotification,
+                     UIApplication.didBecomeActiveNotification] {
+            nc.addObserver(self, selector: #selector(remeasureKeyboard), name: name, object: nil)
+        }
+    }
+
+    /// Keyboard top taken from where the accessory bar actually is on screen.
+    @objc private func remeasureKeyboard() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let screen = view.window?.screen, accessory.window != nil,
+                  current?.isFirstResponder == true else { return }
+            let top = view.convert(accessory.convert(accessory.bounds, to: screen.coordinateSpace),
+                                   from: screen.coordinateSpace).minY
+            let overlap = max(0, view.bounds.maxY - top)
+            guard abs(overlap - keyboardOverlap) > 0.5 else { return }
+            keyboardOverlap = overlap
+            bottomConstraint?.constant = -bottomInset
+            view.layoutIfNeeded()
+        }
     }
 
     @objc private func keyboardChanged(_ n: Notification) {
@@ -265,6 +299,7 @@ final class TerminalHostController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         _ = current?.becomeFirstResponder()
+        remeasureKeyboard()
     }
 
     func show(_ session: TerminalSession?) {

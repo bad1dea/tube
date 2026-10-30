@@ -21,6 +21,22 @@ final class TransferTests: XCTestCase {
             trust: MemoryTrust(accept: true))
     }
 
+    func testWritePrivateIsOwnerOnly() async throws {
+        let conn = try await connect()
+        let b = try await conn.openFileBrowser()
+        let top = try await b.home() + "/.cache/tube-test-\(UInt32.random(in: 0...UInt32.max))"
+        let dir = top + "/paste"
+        try await b.makeDirectories(dir)
+        let data = Data((0..<70_000).map { UInt8($0 & 0xff) })
+        try await b.writePrivate(data, to: dir + "/a.png")
+        // Low 9 bits only; a setgid parent passes its bit down.
+        let modes = try await conn.run("stat -c %a \(dir) | tail -c 4; stat -c '%a %s' \(dir)/a.png")
+        XCTAssertEqual(modes, "700\n600 70000\n")
+        _ = try await conn.run("rm -rf \(top)")
+        await b.close()
+        await conn.close()
+    }
+
     func testSFTPRoundTrip() async throws {
         let conn = try await connect()
         let fb = try await conn.openFileBrowser()

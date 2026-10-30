@@ -76,14 +76,8 @@ final class KeyboardModel: ObservableObject {
         case .latch(let kind):
             tapLatch(kind)
         case .paste:
-            if let s = UIPasteboard.general.string {
-                // Bracketed paste lets shells and editors tell pasted text from typing.
-                if terminal.getTerminal().bracketedPasteMode {
-                    terminal.send(Array("\u{1b}[200~".utf8) + Array(s.utf8) + Array("\u{1b}[201~".utf8))
-                } else {
-                    terminal.send(Array(s.utf8))
-                }
-            }
+            // Same path as the edit menu and Cmd-V: text bracketed, images uploaded.
+            terminal.paste(nil)
         case .togglePanel:
             onToggleInputMode?()
         case .dismissKeyboard:

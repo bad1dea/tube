@@ -47,7 +47,62 @@ final class TerminalSession: ObservableObject, Identifiable {
             view.getTerminal().setCursorStyle(.steadyBlock)
         }
         view.onFontSizeChange = { [weak self] size in self?.setFontSize(size) }
+        view.onPasteImage = { [weak self] data, ext in self?.pasteImage(data, ext: ext) }
     }
+
+    // MARK: Image paste
+
+    struct PasteNotice: Equatable {
+        var text: String
+        var busy = false
+        var failed = false
+    }
+    @Published private(set) var pasteNotice: PasteNotice?
+    private var noticeClear: Task<Void, Never>?
+
+    /// A pasted image is uploaded to ~/.cache/tube/paste (owner-only) and its path
+    /// is pasted instead, for command-line tools that attach images by path.
+    private func pasteImage(_ data: Data, ext: String) {
+        guard let connection, state == .connected else { return }
+        showNotice(PasteNotice(text: "Uploading image…", busy: true), clearAfter: nil)
+        Task { @MainActor in
+            do {
+                let browser = try await connection.openFileBrowser()
+                do {
+                    let dir = try await browser.home() + "/.cache/tube/paste"
+                    try await browser.makeDirectories(dir)
+                    let stamp = Self.pasteStamp.string(from: Date())
+                    let path = "\(dir)/\(stamp).\(ext)"
+                    try await browser.writePrivate(data, to: path)
+                    await browser.close()
+                    view.pasteText(path)
+                    showNotice(PasteNotice(text: "Image pasted as a path"), clearAfter: 2)
+                } catch {
+                    await browser.close()
+                    throw error
+                }
+            } catch {
+                showNotice(PasteNotice(text: "Image paste failed: \(error.localizedDescription)", failed: true), clearAfter: 5)
+            }
+        }
+    }
+
+    private func showNotice(_ notice: PasteNotice, clearAfter seconds: Double?) {
+        noticeClear?.cancel()
+        pasteNotice = notice
+        guard let seconds else { return }
+        noticeClear = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            if !Task.isCancelled { self?.pasteNotice = nil }
+        }
+    }
+
+    private static let pasteStamp: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd-HHmmss-SSS"
+        return f
+    }()
 
     /// For SFTP on the same connection while the shell is open.
     var sshConnection: SSHConnection? { connection }

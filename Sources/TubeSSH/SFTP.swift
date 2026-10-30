@@ -101,6 +101,37 @@ public final class FileBrowser: @unchecked Sendable {
         try await file.close()
     }
 
+    /// Writes `data` to `path`, created readable by the owner only (0600).
+    public func writePrivate(_ data: Data, to path: String) async throws {
+        var attributes = SFTPFileAttributes()
+        attributes.permissions = 0o600
+        let file = try await sftp.openFile(filePath: path, flags: [.write, .create, .truncate], attributes: attributes)
+        do {
+            var offset = 0
+            while offset < data.count {
+                let end = min(offset + Self.chunk, data.count)
+                try await file.write(ByteBuffer(bytes: data[offset..<end]), at: UInt64(offset))
+                offset = end
+            }
+        } catch {
+            try? await file.close()
+            throw error
+        }
+        try await file.close()
+    }
+
+    /// Creates each missing directory along `path` (absolute), owner-only (0700).
+    public func makeDirectories(_ path: String) async throws {
+        var current = ""
+        for part in path.split(separator: "/") {
+            current += "/" + part
+            if await isDirectory(current) { continue }
+            var attributes = SFTPFileAttributes()
+            attributes.permissions = 0o700
+            try await sftp.createDirectory(atPath: current, attributes: attributes)
+        }
+    }
+
     /// `list` reports symlinks as themselves (lstat); this follows them.
     public func isDirectory(_ path: String) async -> Bool {
         guard let mode = try? await sftp.getAttributes(at: path).permissions else { return false }

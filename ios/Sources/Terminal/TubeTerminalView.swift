@@ -1,4 +1,5 @@
 import UIKit
+import UniformTypeIdentifiers
 import SwiftTerm
 import TermInput
 
@@ -8,6 +9,8 @@ import TermInput
 final class TubeTerminalView: TerminalView {
     weak var keyboard: KeyboardModel?
     var onFontSizeChange: ((CGFloat) -> Void)?
+    /// An image on the clipboard (screenshot, copied photo): data and file extension.
+    var onPasteImage: ((Data, String) -> Void)?
 
     private var pinchStartSize: CGFloat = 13
 
@@ -32,6 +35,28 @@ final class TubeTerminalView: TerminalView {
     var modes: TerminalModes {
         TerminalModes(applicationCursor: getTerminal().applicationCursor,
                       backspaceSendsControlH: backspaceSendsControlH)
+    }
+
+    override func paste(_ sender: Any?) {
+        let pb = UIPasteboard.general
+        if !pb.hasStrings, let onPasteImage, let (data, ext) = Self.clipboardImage(pb) {
+            onPasteImage(data, ext)
+            return
+        }
+        super.paste(sender)
+    }
+
+    /// Sends `text` the way a paste would, bracketed when the remote asked for it.
+    func pasteText(_ text: String) {
+        let bracketed = getTerminal().bracketedPasteMode
+        send((bracketed ? Array("\u{1b}[200~".utf8) : []) + Array(text.utf8) + (bracketed ? Array("\u{1b}[201~".utf8) : []))
+    }
+
+    private static func clipboardImage(_ pb: UIPasteboard) -> (Data, String)? {
+        guard pb.hasImages else { return nil }
+        if let png = pb.data(forPasteboardType: UTType.png.identifier) { return (png, "png") }
+        if let jpeg = pb.data(forPasteboardType: UTType.jpeg.identifier) { return (jpeg, "jpg") }
+        return pb.image?.pngData().map { ($0, "png") }
     }
 
     override func insertText(_ text: String) {
